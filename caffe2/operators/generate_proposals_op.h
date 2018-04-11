@@ -72,13 +72,16 @@ class GenerateProposalsOp final : public Operator<Context> {
         rpn_pre_nms_topN_(
             OperatorBase::GetSingleArgument<int>("pre_nms_topN", 6000)),
         rpn_post_nms_topN_(
-            OperatorBase::GetSingleArgument<int>("post_nms_topN", 300)),
+            OperatorBase::GetSingleArgument<int>("post_nms_topN", 30)),
         rpn_nms_thresh_(
             OperatorBase::GetSingleArgument<float>("nms_thresh", 0.7f)),
         rpn_min_size_(OperatorBase::GetSingleArgument<float>("min_size", 16)),
+        fill_output_(OperatorBase::GetSingleArgument<bool>("fill_output", false)),
         correct_transform_coords_(OperatorBase::GetSingleArgument<bool>(
             "correct_transform_coords",
-            false)) {}
+            false)) {
+    rpn_post_nms_topN_ = 1;
+  }
 
   ~GenerateProposalsOp() {}
 
@@ -112,6 +115,8 @@ class GenerateProposalsOp final : public Operator<Context> {
   float rpn_nms_thresh_{0.7};
   // RPN_MIN_SIZE
   float rpn_min_size_{16};
+  // whether fill output to rpn_post_nms_topN_
+  bool fill_output_{false};
   // Correct bounding box transform coordates, see bbox_transform() in boxes.py
   // Set to true to match the detectron code, set to false for backward
   // compatibility

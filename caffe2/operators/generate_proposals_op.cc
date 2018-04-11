@@ -196,7 +196,6 @@ bool GenerateProposalsOp<CPUContext>::RunOnDevice() {
   const auto height = scores.dim(2);
   const auto width = scores.dim(3);
   const auto K = height * width;
-
   // bbox_deltas: (num_images, A * 4, H, W)
   CAFFE_ENFORCE_EQ(
       bbox_deltas.dims(), (vector<TIndex>{num_images, 4 * A, height, width}));
@@ -259,7 +258,38 @@ bool GenerateProposalsOp<CPUContext>::RunOnDevice() {
         out_rois_probs->mutable_data<float>() + cur_start_idx, csz) =
         im_i_probs;
   }
-
+  if (fill_output_ && out_rois->dim(0) < rpn_post_nms_topN_) {
+    int cur_start_idx = out_rois->dim(0);
+    auto csz = rpn_post_nms_topN_ - out_rois->dim(0);
+    out_rois->Extend(csz, 50, &context_);
+    out_rois_probs->Extend(csz, 50, &context_);
+    Eigen::Map<ERArrXXf> cur_rois(
+        out_rois->mutable_data<float>() + cur_start_idx * roi_col_count,
+        csz,
+        5);
+    for (int i = 0; i < roi_col_count; ++i) {
+      cur_rois.col(i).setConstant(0);
+    }
+    Eigen::Map<EArrXf> cur_roi_probs(
+                                     out_rois_probs->mutable_data<float>() + cur_start_idx, csz);
+    cur_roi_probs.col(0).setConstant(0);
+  } else if (out_rois->dim(0) == 0) {
+    int cur_start_idx = out_rois->dim(0);
+    auto csz = 1;
+    out_rois->Extend(csz, 50, &context_);
+    out_rois_probs->Extend(csz, 50, &context_);
+    Eigen::Map<ERArrXXf> cur_rois(
+        out_rois->mutable_data<float>(),
+        csz,
+        5);
+    for (int i = 0; i < roi_col_count; ++i) {
+      cur_rois.col(i).setConstant(0);
+    }
+    Eigen::Map<EArrXf> cur_roi_probs(
+                                     out_rois_probs->mutable_data<float>() + cur_start_idx, csz);
+    cur_roi_probs.col(0).setConstant(0);
+  }
+  //LOG(ERROR) << "[C2DEBUG] out_rois(0): " << out_rois->dim(0) << " post_nms_top_N " << rpn_post_nms_topN_;
   return true;
 }
 
@@ -293,6 +323,7 @@ non-maximum suppression is applied to generate the final bounding boxes.
     .Arg("post_nms_topN", "(int) RPN_POST_NMS_TOP_N")
     .Arg("nms_thresh", "(float) RPN_NMS_THRESH")
     .Arg("min_size", "(float) RPN_MIN_SIZE")
+    .Arg("fill_output", "(bool) whether fix the output to post_nms_topN(this is used in OpenGL net, don't include this argument in the protobuf)")
     .Input(0, "scores", "Scores from conv layer, size (img_count, A, H, W)")
     .Input(
         1,
