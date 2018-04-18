@@ -507,7 +507,7 @@ if (USE_ACL)
       COMMAND
         /bin/sh -c "export PATH=\"$PATH:$(dirname ${CMAKE_CXX_COMPILER})\" && \
         scons -C \"${ARM_COMPUTE_SRC_DIR}\" -Q \
-          examples=no validation_tests=no benchmark_tests=no standalone=yes \
+          examples=no validation_tests=no benchmark_tests=no \
           embed_kernels=yes opencl=no gles_compute=yes \
           os=android arch=${ACL_ARCH} \
           extra_cxx_flags=\"${ANDROID_CXX_FLAGS} ${ANDROID_STL_INCLUDE_FLAGS}\"" &&
