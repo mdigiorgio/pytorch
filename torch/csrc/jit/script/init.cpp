@@ -120,7 +120,7 @@ struct VISIBILITY_HIDDEN ConstantPythonValue : public PythonValue {
     // while ...
     //   f = f + 1
     if(py::isinstance<py::int_>(self)) {
-      return createConstant(loc, m, at::CPU(at::kInt).scalarTensor(py::cast<int32_t>(self)));
+      return createConstant(loc, m, at::CPU(at::kLong).scalarTensor(py::cast<int64_t>(self)));
     } else if(py::isinstance<py::float_>(self)) {
       return createConstant(loc, m, at::CPU(at::kFloat).scalarTensor(py::cast<float>(self)));
     } else if(py::isinstance<py::bool_>(self)) {
@@ -381,7 +381,9 @@ void initJitScriptBindings(PyObject* module) {
       auto inputs = createVariableTensorList(args);
       auto outputs = m.run(std::move(inputs));
       return unpackVariableTensorList(std::move(outputs));
-    });
+    })
+    .def("propagate_shapes", &Method::propagate_shapes)
+    .def("params", &Method::params);
 
   m.def("_jit_script_compile", [](Def def, ResolutionCallback rcb) {
     return compileFunction(def, pythonResolver(rcb));

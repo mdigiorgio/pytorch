@@ -51,7 +51,7 @@ namespace caffe2 {
 
 #if EIGEN_VERSION_AT_LEAST(3, 3, 0)
 template <typename T, int D>
-using EigenTensorMap = Eigen::TensorMap<Eigen::Tensor<T, D, Eigen::RowMajor>>;
+using EigenTensorMap = Eigen::TensorMap<Eigen::Tensor<T, D>>;
 #endif // EIGEN_VERSION_AT_LEAST(3, 3, 0)
 
 namespace math {
@@ -674,7 +674,7 @@ CAFFE2_SPECIALIZED_REDUCEMAX(int64_t)
 
 #undef CAFFE2_SPECIALIZED_REDUCEMAX
 
-namespace {
+namespace internal {
 
 void IncreaseIndexInDims(const int n, const int* dims, int* index) {
   for (int i = n - 1; i >= 0; --i) {
@@ -697,6 +697,10 @@ int GetIndexFromDims(const int n, const int* dims, const int* index) {
   return sum;
 }
 
+} // namespace internal
+
+namespace {
+
 #if EIGEN_VERSION_AT_LEAST(3, 3, 0)
 
 template <typename T, class Reducer, int kNumDims, int kNumAxes>
@@ -710,12 +714,13 @@ void EigenReduceTensorImpl(
   Eigen::DSizes<Eigen::DenseIndex, kNumDims> Y_dims;
   Eigen::array<Eigen::DenseIndex, kNumAxes> reduce_dims;
   for (int i = 0; i < kNumDims; ++i) {
-    X_dims[i] = static_cast<Eigen::DenseIndex>(dims[i]);
-    Y_dims[i] = static_cast<Eigen::DenseIndex>(dims[i]);
+    X_dims[i] = static_cast<Eigen::DenseIndex>(dims[kNumDims - 1 - i]);
+    Y_dims[i] = static_cast<Eigen::DenseIndex>(dims[kNumDims - 1 - i]);
   }
   for (int i = 0; i < kNumAxes; ++i) {
-    Y_dims[axes[i]] = static_cast<Eigen::DenseIndex>(1);
-    reduce_dims[i] = static_cast<Eigen::DenseIndex>(axes[i]);
+    Y_dims[kNumDims - 1 - axes[i]] = static_cast<Eigen::DenseIndex>(1);
+    reduce_dims[kNumAxes - 1 - i] =
+        static_cast<Eigen::DenseIndex>(kNumDims - 1 - axes[i]);
   }
   EigenTensorMap<T, kNumDims>(Y, Y_dims) =
       EigenTensorMap<T, kNumDims>(const_cast<T*>(X), X_dims)
@@ -820,9 +825,10 @@ void ReduceTensor(
   Set<T, CPUContext>(Y_size, init, Y, context);
   std::vector<int> index(num_dims, 0);
   for (int X_index = 0; X_index < X_size; ++X_index) {
-    const int Y_index = GetIndexFromDims(num_dims, Y_dims.data(), index.data());
+    const int Y_index =
+        internal::GetIndexFromDims(num_dims, Y_dims.data(), index.data());
     Y[Y_index] = reducer(Y[Y_index], X[X_index]);
-    IncreaseIndexInDims(num_dims, dims, index.data());
+    internal::IncreaseIndexInDims(num_dims, dims, index.data());
   }
 }
 
@@ -1043,9 +1049,9 @@ void BroadcastImpl(
   std::vector<int> index(Y_ndim, 0);
   for (int Y_index = 0; Y_index < Y_size; ++Y_index) {
     const int X_index =
-        GetIndexFromDims(Y_ndim, X_dims_ex.data(), index.data());
+        internal::GetIndexFromDims(Y_ndim, X_dims_ex.data(), index.data());
     Y[Y_index] = X[X_index];
-    IncreaseIndexInDims(Y_ndim, Y_dims, index.data());
+    internal::IncreaseIndexInDims(Y_ndim, Y_dims, index.data());
   }
 }
 
@@ -2002,7 +2008,7 @@ void TransposeCPUImpl(
           X + block_size * X_index,
           block_size * sizeof(T));
     }
-    IncreaseIndexInDims(itr_axes, Y_dims.data(), index.data());
+    internal::IncreaseIndexInDims(itr_axes, Y_dims.data(), index.data());
   }
 }
 
@@ -2013,9 +2019,9 @@ void EigenTransposeImpl(const int* dims, const int* axes, const T* X, T* Y) {
   Eigen::array<Eigen::DenseIndex, D> axes_array;
 #pragma unroll
   for (int i = 0; i < D; ++i) {
-    X_dims[i] = static_cast<Eigen::DenseIndex>(dims[i]);
-    Y_dims[i] = static_cast<Eigen::DenseIndex>(dims[axes[i]]);
-    axes_array[i] = static_cast<Eigen::DenseIndex>(axes[i]);
+    X_dims[i] = static_cast<Eigen::DenseIndex>(dims[D - 1 - i]);
+    Y_dims[i] = static_cast<Eigen::DenseIndex>(dims[D - 1 - axes[i]]);
+    axes_array[D - 1 - i] = static_cast<Eigen::DenseIndex>(D - 1 - axes[i]);
   }
   EigenTensorMap<T, D>(Y, Y_dims) =
       EigenTensorMap<T, D>(const_cast<T*>(X), X_dims).shuffle(axes_array);
