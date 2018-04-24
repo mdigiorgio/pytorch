@@ -73,7 +73,7 @@ def _get_min_log_scale():
 
 
 def _number_format(tensor, min_sz=-1):
-    int_mode = not tensor.dtype.is_floating_point
+    floating_dtype = tensor.dtype.is_floating_point  # save this because we cast later
     _min_log_scale = _get_min_log_scale()
     min_sz = max(min_sz, 2)
     tensor = torch.DoubleTensor(tensor.size()).copy_(tensor).abs_().view(tensor.nelement())
@@ -90,6 +90,13 @@ def _number_format(tensor, min_sz=-1):
     if invalid_value_mask.any():
         min_sz = max(min_sz, 3)
 
+    int_mode = True
+    # TODO: use fmod?
+    for value in tensor.tolist():
+        if value != math.ceil(value):
+            int_mode = False
+            break
+
     exp_min = tensor.min()
     if exp_min != 0:
         exp_min = math.floor(math.log10(exp_min)) + 1
@@ -100,6 +107,7 @@ def _number_format(tensor, min_sz=-1):
         exp_max = math.floor(math.log10(exp_max)) + 1
     else:
         exp_max = 1
+    include_decimal_int_mode = floating_dtype and int_mode
 
     scale = 1
     exp_max = int(exp_max)
@@ -111,6 +119,9 @@ def _number_format(tensor, min_sz=-1):
         else:
             sz = max(min_sz, exp_max + 1)
             format = '{:' + str(sz) + '.0f}'
+            if include_decimal_int_mode:
+                format += '.'
+                sz += 1
     else:
         if exp_max - exp_min > prec:
             sz = 7 + prec
@@ -144,11 +155,11 @@ def _vector_str(self, indent, fmt, scale, sz, summarize):
     char_per_line = element_length * elements_per_line
 
     if summarize and self.size(0) > 2 * PRINT_OPTS.edgeitems:
-        data = ([fmt.format(val.item() / scale) for val in self[:PRINT_OPTS.edgeitems]] +
+        data = ([fmt.format(val / scale) for val in self[:PRINT_OPTS.edgeitems].tolist()] +
                 [' ...'] +
-                [fmt.format(val.item() / scale) for val in self[-PRINT_OPTS.edgeitems:]])
+                [fmt.format(val / scale) for val in self[-PRINT_OPTS.edgeitems:].tolist()])
     else:
-        data = [fmt.format(val.item() / scale) for val in self]
+        data = [fmt.format(val) for val in self.tolist()]
 
     data_lines = [data[i:i + elements_per_line] for i in range(0, len(data), elements_per_line)]
     lines = [', '.join(line) for line in data_lines]
@@ -176,10 +187,28 @@ def _tensor_str(self, indent, fmt, scale, sz, summarize):
     return '[' + tensor_str + ']'
 
 
+def get_summarized_data(self):
+    dim = self.dim()
+    if dim == 0:
+        return self
+    if dim == 1:
+        if self.size(0) > 2 * PRINT_OPTS.edgeitems:
+            return torch.cat((self[:PRINT_OPTS.edgeitems], self[-PRINT_OPTS.edgeitems:]))
+        else:
+            return self
+    if self.size(0) > 2 * PRINT_OPTS.edgeitems:
+        start = [get_summarized_data(self[i]).view(-1) for i in range(0, PRINT_OPTS.edgeitems)]
+        end = ([get_summarized_data(self[i]).view(-1)
+               for i in range(len(self) - PRINT_OPTS.edgeitems, len(self))])
+        return torch.cat((start + end))
+    else:
+        return self
+
+
 def _str(self):
     if self.is_sparse:
         size_str = str(tuple(self.shape)).replace(' ', '')
-        return '{} of size {} with indices:\n{}and values:\n{}'.format(
+        return '{} of size {} with indices:\n{}\nand values:\n{}'.format(
             self.type(), size_str, self._indices(), self._values())
 
     prefix = 'tensor('
@@ -194,13 +223,17 @@ def _str(self):
         if self.device.type == 'cpu' or torch.cuda.current_device() != self.device.index:
             suffix = ', device=\'' + str(self.device) + '\'' + suffix
 
-    if self.dtype != torch.get_default_dtype() and self.dtype != torch.int64:
-        suffix = ', dtype=' + str(self.dtype) + suffix
-
     if self.numel() == 0:
+        # In an empty tensor, there are no elements to infer if the dtype should be int64,
+        # so it must be shown explicitly.
+        if self.dtype != torch.get_default_dtype():
+            suffix = ', dtype=' + str(self.dtype) + suffix
         tensor_str = '[]'
     else:
-        fmt, scale, sz = _number_format(self)
+        if self.dtype != torch.get_default_dtype() and self.dtype != torch.int64:
+            suffix = ', dtype=' + str(self.dtype) + suffix
+
+        fmt, scale, sz = _number_format(get_summarized_data(self) if summarize else self)
         if scale != 1:
             prefix = prefix + SCALE_FORMAT.format(scale) + ' ' * indent
         tensor_str = _tensor_str(self, indent, fmt, scale, sz, summarize)

@@ -121,17 +121,16 @@ class TestJit(TestCase):
     # index-2 is not implemented in interpreter
     @unittest.expectedFailure
     def test_index(self):
-        x = Variable(torch.rand(2, 2, 2), requires_grad=True)
+        x = Variable(torch.Tensor([0.4]), requires_grad=True)
         y = Variable(torch.LongTensor([0]), requires_grad=True)
-        y2 = Variable(torch.LongTensor([1]), requires_grad=True)
 
         @torch.jit.compile(nderivs=0)
-        def fn(x, y, y2):
-            return x[y, y2]
+        def fn(x, y):
+            return x[y]
 
-        z = fn(x, y, y2)
+        z = fn(x, y)
         with self.assertCompiled(fn):
-            z2 = fn(x, y, y2)
+            z2 = fn(x, y)
         self.assertEqual(z, z2)
 
     # Backwards tracing was broken for indexing by a constant,
@@ -1434,9 +1433,9 @@ class TestJit(TestCase):
         def test_fuser_multiple_blocks(this, that, theother, meme):
             i = 0
             while i < 20:
-                this = cat(this, meme, dim=0)
-                that = cat(that, meme, dim=0)
-                theother = cat(theother, meme, dim=0)
+                this = cat([this, meme], dim=0)
+                that = cat([that, meme], dim=0)
+                theother = cat([theother, meme], dim=0)
                 i = i + 1
             return this, that, theother
         ''')
@@ -1579,6 +1578,53 @@ class TestScript(TestCase):
         y = func(x)
         y2 = torch.sum(x, dim=0, keepdim=True)
         self.assertEqual(y, y2)
+
+    def test_literal(self):
+        def func(a, b):
+            c = [a, b]
+            d, e = c
+            return d + e
+
+        def func2(a, b):
+            c = a, b
+            d, e = c
+            return d + e
+
+        def func3(a, b):
+            c = a, (a, b)
+            d, e = c
+            f, g = e
+            return d + f + g
+
+        def func4(a, b):
+            c = 0, (0, 0)
+            x = True
+            while x:
+                x = False
+                c = a, (a, b)
+            d, e = c
+            f, g = e
+            return d + f + g
+
+        a = torch.rand(1, requires_grad=True)
+        b = torch.rand(1, requires_grad=True)
+        self.checkScript(func, (a, b), optimize=True)
+        self.checkScript(func2, (a, b), optimize=True)
+        self.checkScript(func3, (a, b), optimize=True)
+        self.checkScript(func4, (a, b), optimize=True)
+
+    def test_cat(self):
+        @torch.jit.script
+        def func(x):
+            return torch.cat((x, x), dim=0)
+
+        x = torch.rand(10, dtype=torch.float, requires_grad=True)
+        self.assertEqual(func(x), torch.cat((x, x), dim=0))
+
+        with self.assertRaisesRegex(RuntimeError, "at most 2 inputs"):
+            @torch.jit.script
+            def func(x):
+                return torch.cat((x, x), x, dim=0)
 
     def test_func_call(self):
         script = '''
@@ -2494,7 +2540,7 @@ class TestScript(TestCase):
         v = torch.rand(10, 3)
         self.assertEqual(torch.chunk(v, dim=0, chunks=2)[0], foo(v))
 
-        with self.assertRaisesRegex(RuntimeError, "variable 'a' previously has type"):
+        with self.assertRaisesRegex(RuntimeError, r"variable 'a' previously has type \(Tensor, Tensor\)"):
             @torch.jit.script
             def mixtypes():
                 a = torch.chunk(1, dim=0, chunks=2)
@@ -2726,6 +2772,31 @@ class TestScript(TestCase):
         self.assertEqual(result, reference)
         self.assertExpected(torch.onnx._export_to_pretty_string(
             mte, (torch.ones(2, 3),), None, verbose=False))
+
+    def test_trace_with_size(self):
+        @torch.jit.trace(torch.zeros(1, 1))
+        def foo(x):
+            return x + 1
+
+        @torch.jit.script
+        def bar(x):
+            y = foo(x)
+            if True:
+                y = 7
+            return y + 1
+
+        self.assertEqual(8, bar(torch.ones(1, 1)))
+
+    def test_index_select_shape_prop(self):
+
+        @torch.jit.script
+        def foo(x, y):
+            return torch.index_select(x, y, dim=1)
+
+        a = torch.zeros(2, 2)
+        b = torch.zeros(4, dtype=torch.long)
+        foo.graph.propagate_shapes((a, b), False)
+        self.assertExpected(str(foo.graph))
 
 
 # Smoke tests for export methods
