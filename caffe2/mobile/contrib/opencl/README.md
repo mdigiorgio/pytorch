@@ -1,4 +1,4 @@
-# Caffe2 - ARM Compute Backend
+# Caffe2 - ARM Compute Backend(OpenCL)
 
 ## Build
 
