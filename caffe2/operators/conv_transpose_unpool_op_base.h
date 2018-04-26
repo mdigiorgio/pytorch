@@ -124,16 +124,18 @@ class ConvTransposeUnpoolBase : public Operator<Context> {
       CAFFE_ENFORCE_LE(adj_[dim], stride_[dim]);
     }
 
+    caffe2::FLAGS_caffe2_force_shared_col_buffer = false;
     // Create shared buffer mutex in the constructor
     // to avoid race-condition in DAGNet.
     if (FLAGS_caffe2_force_shared_col_buffer || shared_buffer_) {
-      createSharedBuffer<Context>(ws_);
+      //createSharedBuffer<Context>(ws_);
     }
   }
   // Sets the output size. The output channel is manually specified.
+  template<typename AlternativeContext>
   void SetOutputSize(
-      const Tensor<Context>& input,
-      Tensor<Context>* output,
+      const Tensor<AlternativeContext>& input,
+      Tensor<AlternativeContext>* output,
       int output_channel) {
     CAFFE_ENFORCE(4 == input.ndim());
     CAFFE_ENFORCE(input.size() > 0);
