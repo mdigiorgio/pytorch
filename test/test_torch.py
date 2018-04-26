@@ -555,6 +555,33 @@ class TestTorch(TestCase):
     def test_min(self):
         self._testSelection(torch.min, min)
 
+    @staticmethod
+    def _test_norm(self, device):
+        # full reduction
+        x = torch.randn(5, device=device)
+        xn = x.cpu().numpy()
+        for p in [0, 1, 2, 3, 4, float('inf')]:
+            res = x.norm(p).item()
+            expected = np.linalg.norm(xn, p)
+            self.assertEqual(res, expected, "full reduction failed for {}-norm".format(p))
+        # one dimension
+        x = torch.randn(5, 5, device=device)
+        xn = x.cpu().numpy()
+        for p in [0, 1, 2, 3, 4, float('inf')]:
+            res = x.norm(p, 1).cpu().numpy()
+            expected = np.linalg.norm(xn, p, 1)
+            self.assertEqual(res.shape, expected.shape)
+            self.assertTrue(np.allclose(res, expected), "dim reduction failed for {}-norm".format(p))
+
+    @unittest.skipIf(not TEST_NUMPY, "Numpy not found")
+    def test_norm(self):
+        self._test_norm(self, device='cpu')
+
+    @unittest.skipIf(not TEST_NUMPY, "Numpy not found")
+    @unittest.skipIf(not torch.cuda.is_available(), 'no CUDA')
+    def test_norm_cuda(self):
+        self._test_norm(self, device='cuda')
+
     def test_dim_reduction_uint8_overflow(self):
         example = [[-1, 2, 1], [5, 3, 6]]
         x = torch.tensor(example, dtype=torch.uint8)
@@ -1563,6 +1590,22 @@ class TestTorch(TestCase):
         output = torch.zeros_like(x)
         self.assertEqual(output, expected)
 
+    def test_zeros_out(self):
+        shape = (3, 4)
+        out = torch.zeros(shape)
+        torch.zeros(shape, out=out)
+
+        # change the dtype, layout, device
+        self.assertRaises(RuntimeError, lambda: torch.zeros(shape, dtype=torch.int64, out=out))
+        self.assertRaises(RuntimeError, lambda: torch.zeros(shape, layout=torch.sparse_coo, out=out))
+        if torch.cuda.is_available():
+            self.assertRaises(RuntimeError, lambda: torch.zeros(shape, device='cuda', out=out))
+
+        # leave them the same
+        self.assertEqual(torch.zeros(shape), torch.zeros(shape, dtype=out.dtype, out=out))
+        self.assertEqual(torch.zeros(shape), torch.zeros(shape, layout=torch.strided, out=out))
+        self.assertEqual(torch.zeros(shape), torch.zeros(shape, device='cpu', out=out))
+
     def test_histc(self):
         x = torch.Tensor((2, 4, 2, 2, 5, 4))
         y = torch.histc(x, 5, 1, 5)  # nbins,  min,  max
@@ -1971,6 +2014,25 @@ class TestTorch(TestCase):
     def test_diagonal(self):
         self._test_diagonal(self, dtype=torch.float32, device='cpu')
 
+    @unittest.skipIf(not TEST_NUMPY, 'Numpy not found')
+    def test_diagonal_multidim(self):
+        x = torch.randn(10, 11, 12, 13)
+        xn = x.numpy()
+        for args in [(2, 2, 3),
+                     (2,),
+                     (-2, 1, 2),
+                     (0, -2, -1)]:
+            result = torch.diagonal(x, *args)
+            expected = xn.diagonal(*args)
+            self.assertEqual(expected.shape, result.shape)
+            self.assertTrue(np.allclose(expected, result.numpy()))
+        # test non-continguous
+        xp = x.permute(1, 2, 3, 0)
+        result = torch.diagonal(xp, 0, -2, -1)
+        expected = xp.numpy().diagonal(0, -2, -1)
+        self.assertEqual(expected.shape, result.shape)
+        self.assertTrue(np.allclose(expected, result.numpy()))
+
     @staticmethod
     def _test_diagflat(self, dtype, device):
         # Basic sanity test
@@ -2039,6 +2101,23 @@ class TestTorch(TestCase):
         m3 = m1.transpose(1, 2).contiguous().clone().resize_(15, 4)
         self.assertEqual(m3, m2)
         self.assertEqual(m3.norm(2, 0), m2.norm(2, 0))
+
+    @staticmethod
+    def _test_renorm_ps(self, device):
+        # full reduction
+        x = torch.randn(5, 5)
+        xn = x.numpy()
+        for p in [1, 2, 3, 4, float('inf')]:
+            res = x.renorm(p, 1, 1)
+            expected = x / x.norm(p, 0, keepdim=True).clamp(min=1)
+            self.assertEqual(res.numpy(), expected.numpy(), "renorm failed for {}-norm".format(p))
+
+    def test_renorm_ps(self):
+        self._test_renorm_ps(self, device='cpu')
+
+    @unittest.skipIf(not torch.cuda.is_available(), 'no CUDA')
+    def test_renorm_ps_cuda(self):
+        self._test_renorm_ps(self, device='cuda')
 
     @staticmethod
     def _test_multinomial(self, type):

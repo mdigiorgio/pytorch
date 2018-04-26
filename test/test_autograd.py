@@ -2145,6 +2145,18 @@ class TestAutograd(TestCase):
         # we should throw an exception if the output requires grad
         self.assertRaisesRegex(RuntimeError, 'out=', lambda: torch.mul(a, b, out=x))
 
+    def test_diagonal_derivative_requires_grad(self):
+        # test that the backward requires grad
+        # we do this is because diagonal_backward uses inplace
+        # operations and gradgradcheck does not catch whether
+        # they works as expected (it will succeed even if
+        # the gradient has requires_grad == False
+        a = torch.randn(5, 6, requires_grad=True)
+        b = torch.diagonal(a)**2
+        c = b.sum()
+        d, = torch.autograd.grad(c, a, retain_graph=True, create_graph=True)
+        self.assertTrue(d.requires_grad)
+
 
 def index_variable(shape, max_indices):
     if not isinstance(shape, tuple):
@@ -2531,6 +2543,7 @@ method_tests = [
     ('std', (S,), (0, True, True), 'keepdim_dim_1d', [0]),
     ('renorm', (S, S, S), (2, 1, 0.5), 'dim', [1]),
     ('renorm', (S, S, S), (1, 2, 3), 'norm_1'),
+    ('renorm', (S, S, S), (float('inf'), 2, 0.5), 'norm_inf'),
     ('repeat', (S,), (2,), 'single_number'),
     ('repeat', (), (2, 3), 'scalar'),
     ('repeat', (2, 2), (3, 2)),
@@ -2619,6 +2632,7 @@ method_tests = [
     ('norm', (S, S), (0.5,), '0_5'),
     ('norm', (S, S), (1,), '1'),
     ('norm', (S, S), (3,), '3'),
+    ('norm', (S, S), (float('inf'),), 'inf'),
     ('norm', (S, S), (-1,), 'neg_1'),
     ('norm', (S, S), (-0.5,), 'neg_0_5'),
     ('norm', (S, S), (-1.5,), 'neg_1_5'),
@@ -2659,6 +2673,18 @@ method_tests = [
     ('diag', (M,), NO_ARGS, '1d'),
     ('diag', (M, M), (1,), '2d_1'),
     ('diag', (M, M), (2,), '2d_2'),
+    ('diagonal', (M, M), NO_ARGS, '2d'),
+    ('diagonal', (3, 5), NO_ARGS, '2d_wide'),
+    ('diagonal', (3, 5), (2,), '2d_wide_pos'),
+    ('diagonal', (3, 5), (-2,), '2d_wide_neg'),
+    ('diagonal', (5, 3), NO_ARGS, '2d_tall'),
+    ('diagonal', (5, 3), (2,), '2d_tall_pos'),
+    ('diagonal', (5, 3), (-2,), '2d_tall_neg'),
+    ('diagonal', (M, M), (1,), '2d_1'),
+    ('diagonal', (M, M), (2,), '2d_2'),
+    ('diagonal', (M, M, M), (1, 1, 2), '3d_1'),
+    ('diagonal', (M, M, M), (2, 0, 1), '3d_2'),
+    ('diagonal', (M, M, M), (-2, 0, 1), '3d_3'),
     ('tril', (M, M), NO_ARGS),
     ('tril', (M, M), (2,), 'idx'),
     ('triu', (M, M), NO_ARGS),
