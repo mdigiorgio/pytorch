@@ -22,16 +22,16 @@ class CLConvOp final : public ConvPoolOpBase<CLContext> {
 
   bool RunOnDevice() override;
 private:
-  void gconv_configure(arm_compute::CLConvolutionLayer* conv, arm_compute::ICLTensor *input, const arm_compute::ICLTensor *weights, const arm_compute::ICLTensor *biases, arm_compute::ICLTensor *output, const arm_compute::PadStrideInfo &conv_info, const arm_compute::WeightsInfo &weights_info, int groups, int idx) {
-    auto& input_info = compute_output_shape(input->info()->tensor_shape(), groups, 2, idx);
-    auto& weights_info = compute_output_shape(weights->info()->tensor_shape(), groups, 3, idx);
-    auto& biases_info = compute_output_shape(biases->info()->tensor_shape(), groups, 0, idx);
-    auto& output_info = compute_output_shape(output->info()->tensor_shape(), groups, 2, idx);
-    auto input_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(input, input_info.first, input_info.second));
-    auto output_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(output, output_info.first, output_info.second));
-    auto weights_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(weights, weights_info.first, weights_info.second));
-    auto biases_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(biases, biases_info.first, biases_info.second));
-    conv->configure(input_, output_, weights_, biases_, conv_info, weights_info);
+  void gconv_configure(arm_compute::CLConvolutionLayer* conv, arm_compute::ICLTensor *input, arm_compute::ICLTensor *weights, arm_compute::ICLTensor *biases, arm_compute::ICLTensor *output, const arm_compute::PadStrideInfo &conv_info, const arm_compute::WeightsInfo &weights_info, int groups, int idx) {
+    const auto& input_shape = compute_output_shape(input->info()->tensor_shape(), groups, 2, idx);
+    const auto& weights_shape = compute_output_shape(weights->info()->tensor_shape(), groups, 3, idx);
+    const auto& biases_shape = compute_output_shape(biases->info()->tensor_shape(), groups, 0, idx);
+    const auto& output_shape = compute_output_shape(output->info()->tensor_shape(), groups, 2, idx);
+    auto input_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(input, input_shape.first, input_shape.second, false));
+    auto output_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(output, output_shape.first, output_shape.second, false));
+    auto weights_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(weights, weights_shape.first, weights_shape.second, false));
+    auto biases_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(biases, biases_shape.first, biases_shape.second, false));
+    conv->configure(input_.get(), output_.get(), weights_.get(), biases_.get(), conv_info, weights_info);
   }
   arm_compute::CLConvolutionLayer conv_;
   std::vector<std::unique_ptr<arm_compute::CLConvolutionLayer>> gconv_;
