@@ -34,7 +34,6 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
     filter_ = CLContext::getCLTensor<T>(filterblob);
     bias_ = CLContext::getCLTensor<T>(biasblob);
   }
-
   OpenCLTensor<T> *Y =
     OperatorBase::Outputs()[0]->template GetMutable<OpenCLTensor<T>>();
 
@@ -44,11 +43,11 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
                    "Only 2d convolution is supported with ARM compute backend");
 
   CAFFE_ENFORCE(X_->ndim(), filter_->ndim());
-  const int M = filter_->dim32(0);
+  const int input_channels = filter_->dim32(0);
   const int output_channels = filter_->dim32(1);
   CAFFE_ENFORCE(filter_->dim32(2) == kernel_h());
   CAFFE_ENFORCE(filter_->dim32(3) == kernel_w());
-  CAFFE_ENFORCE(filter_->dim32(1) == C);
+  CAFFE_ENFORCE(input_channels == C);
   CAFFE_ENFORCE(bias_->ndim(), 1);
   CAFFE_ENFORCE(bias_->dim32(0), output_channels);
 
@@ -59,8 +58,6 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
     TensorCPU fakeX;
     fakeX.Resize(X_->dims());
     TensorCPU fakeY;
-    //OperatorDef d;
-    //ConvTransposeUnpoolBase<CPUContext> b(d, nullptr);
     ConvTransposeUnpoolBase<CLContext>::SetOutputSize(fakeX, &fakeY, output_channels);
     Y->ResizeLike(fakeY);
     LOG(INFO) << "[C2DEBUG] dims of X " << X_->dims();
@@ -96,7 +93,7 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
     TensorCPU fakeX;
     fakeX.Resize(X_->dims());
     TensorCPU fakeY;
-    //ConvTransposeUnpoolBase<CLContext>::SetOutputSize(fakeX, &fakeY, output_channels);
+    ConvTransposeUnpoolBase<CLContext>::SetOutputSize(fakeX, &fakeY, output_channels);
     bool need_allocation = Y->ResizeLike(fakeY, true);
     if (need_allocation) {
       Y->allocate();

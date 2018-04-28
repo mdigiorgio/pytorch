@@ -380,21 +380,8 @@ void getTensorCPU(const OpenCLTensor<T>& g_, TensorCPU& g) {
   g_.unmap();
 }
 
-  std::pair<arm_compute::TensorShape, arm_compute::Coordinates> compute_output_shape(arm_compute::TensorShape input_shape, unsigned int num_splits, unsigned int axis, unsigned int idx)
-{
-    ARM_COMPUTE_ERROR_ON(axis >= input_shape.num_dimensions());
-    ARM_COMPUTE_ERROR_ON_MSG(input_shape[axis] % num_splits, "Split should be exact");
+std::pair<arm_compute::TensorShape, arm_compute::Coordinates> compute_output_shape(arm_compute::TensorShape input_shape, unsigned int num_splits, unsigned int axis, unsigned int idx);
 
-    const unsigned int split_size = input_shape[axis] / num_splits;
-
-    arm_compute::TensorShape output_shape = input_shape;
-    output_shape.set(axis, split_size);
-
-    arm_compute::Coordinates coords;
-    coords.set(axis, idx * split_size);
-
-    return std::make_pair(output_shape, coords);
-}
 
 } // namespace caffe2
 

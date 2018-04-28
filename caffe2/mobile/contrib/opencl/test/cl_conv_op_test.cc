@@ -158,5 +158,100 @@ TEST(OPENCLOperatorTest, ConvBenchmark) {
 
 }
 
+TEST(OPENCLOperatorTest, GroupedConv) {
+
+ Workspace ws;
+
+ for (auto channel_in: std::vector<int>({16, 24, 32, 48})) {
+   for (auto channel_out: std::vector<int>({16, 24, 32, 48})) {
+     for (auto groups: std::vector<int>({4, 8})) {
+       auto spatial = 16; // --> 2x2 w no padding, all values 9
+       auto kern = 3;
+       PopulateCPUBlob(&ws, true, "cpu_X", {1, channel_in, spatial, spatial}, 1337);
+       PopulateCPUBlob(&ws, true, "W", {channel_out, channel_in / groups, kern, kern}, 1337);
+       PopulateCPUBlob(&ws, false, "b", {channel_out}, 0);
+
+#define ADD_CONV_ARGS                           \
+       {                                        \
+         ADD_ARG((*def), "kernel", i, kern);    \
+         ADD_ARG((*def), "stride", i, 1);       \
+         ADD_ARG((*def), "group", i, groups);   \
+         ADD_ARG((*def), "pad", i, 0);          \
+         ADD_ARG((*def), "order", s, "NCHW");   \
+       }
+
+       NetDef cpu_net;
+       {
+         OperatorDef* def = AddOp(&cpu_net, "Conv", {"cpu_X", "W", "b"}, {"ref_Y"});
+         def->set_name("cpu_conv");
+         ADD_CONV_ARGS;
+       }
+       ws.RunNetOnce(cpu_net);
+
+       NetDef gpu_net;
+       gpu_net.set_type("opengl");
+       {
+
+         OperatorDef* def = AddOp(&gpu_net, "Conv", {"cpu_X", "W", "b"}, {"gpu_Y"});
+         MAKE_OPENCL_OPERATOR(def);
+         ADD_CONV_ARGS;
+       }
+
+#undef ADD_CONV_ARGS
+
+       compareNetResult4D(ws, cpu_net, gpu_net, "ref_Y", "gpu_Y", tol);
+     }
+   }
+ }
+
+}
+
+
+TEST(OPENCLOperatorTest, DepthwiseConv) {
+
+ Workspace ws;
+ auto channel_in = 16;
+ for (auto channel_in: std::vector<int>({3, 9, 16, 48, 123})) {
+   auto channel_out = channel_in;
+   auto groups = channel_in;
+   auto spatial = 16; // --> 2x2 w no padding, all values 9
+   auto kern = 3;
+
+   PopulateCPUBlob(&ws, true, "cpu_X", {1, channel_in, spatial, spatial}, 1337);
+   PopulateCPUBlob(&ws, true, "W", {channel_out, channel_in, kern, kern}, 1337);
+   PopulateCPUBlob(&ws, false, "b", {channel_out}, 0);
+
+#define ADD_CONV_ARGS                           \
+   {                                            \
+     ADD_ARG((*def), "kernel", i, kern);        \
+     ADD_ARG((*def), "stride", i, 1);           \
+     ADD_ARG((*def), "pad", i, 0);              \
+     ADD_ARG((*def), "order", s, "NCHW");       \
+   }
+
+   NetDef cpu_net;
+   {
+     OperatorDef* def = AddOp(&cpu_net, "Conv", {"cpu_X", "W", "b"}, {"ref_Y"});
+     def->set_name("cpu_conv");
+     ADD_CONV_ARGS;
+   }
+   ws.RunNetOnce(cpu_net);
+
+   NetDef gpu_net;
+   gpu_net.set_type("opengl");
+   {
+
+     OperatorDef* def = AddOp(&gpu_net, "Conv", {"cpu_X", "W", "b"}, {"gpu_Y"});
+     MAKE_OPENCL_OPERATOR(def);
+     ADD_CONV_ARGS;
+   }
+
+#undef ADD_CONV_ARGS
+
+   compareNetResult4D(ws, cpu_net, gpu_net, "ref_Y", "gpu_Y", tol);
+ }
+
+}
+
 } // namespace caffe2
 

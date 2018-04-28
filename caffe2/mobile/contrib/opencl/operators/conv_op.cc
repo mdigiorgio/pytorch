@@ -65,7 +65,7 @@ bool CLConvOp<T>::RunOnDevice() {
   CAFFE_ENFORCE(filter_->dim32(3) == kernel_w());
   bool depthwise = group_ == C;
   bool grouped = group_ > 1;
-  LOG(ERROR) << "[C2DEBUG] group: " << group_ << " depthwise: " << depthwise;
+  LOG(ERROR) << "[C2DEBUG] group: " << group_ << " depthwise: " << depthwise << " grouped: " << grouped;
   CAFFE_ENFORCE(C % group_ == 0);
   CAFFE_ENFORCE(M % group_ == 0);
   CAFFE_ENFORCE(filter_->dim32(1) == C / group_);
@@ -84,6 +84,7 @@ bool CLConvOp<T>::RunOnDevice() {
     fakeX.Resize(X_->dims());
     TensorCPU fakeY;
     ConvPoolOpBase<CLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
+    LOG(ERROR) << "[C2DEBUG] fakeY: " << fakeY.dims();
     Y->ResizeLike(fakeY);
     LOG(INFO) << "[C2DEBUG] dims of X " << X_->dims();
     LOG(INFO) << "[C2DEBUG] dims of X(gctensor) "
@@ -117,11 +118,13 @@ bool CLConvOp<T>::RunOnDevice() {
     }
 
   } else if (second_run_) {
+    LOG(ERROR) << "[C2DEBUG] second";
     // Always attempt to copy the CPU to GPU on input
     X_->lazy_allocate(Xblob, second_run_, true);
     filter_->lazy_allocate(filterblob, second_run_, second_run_);
     bias_->lazy_allocate(biasblob, second_run_, second_run_);
     second_run_ = false;
+    LOG(ERROR) << "[C2DEBUG] second before Y allocate";
     Y->allocate();
     if (depthwise) {
       depth_conv_.run();
@@ -130,9 +133,12 @@ bool CLConvOp<T>::RunOnDevice() {
         gconv_[i]->run();
       }
     } else {
+      LOG(ERROR) << "[C2DEBUG] second before conv_.run()";
       conv_.run();
+      LOG(ERROR) << "[C2DEBUG] second after conv_.run()";
     }
   } else {
+    LOG(ERROR) << "[C2DEBUG] normal run";
     X_->lazy_allocate(Xblob, second_run_, true);
     TensorCPU fakeX;
     fakeX.Resize(X_->dims());
