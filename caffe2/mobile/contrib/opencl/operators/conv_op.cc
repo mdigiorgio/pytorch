@@ -27,6 +27,8 @@ private:
     const auto& weights_shape = compute_output_shape(weights->info()->tensor_shape(), groups, 3, idx);
     const auto& biases_shape = compute_output_shape(biases->info()->tensor_shape(), groups, 0, idx);
     const auto& output_shape = compute_output_shape(output->info()->tensor_shape(), groups, 2, idx);
+    LOG(ERROR) << "[C2DEBUG] input shape: " << input_shape.first[3] << " " << input_shape.first[2] << " " << input_shape.first[1] << " " << input_shape.first[0];
+    LOG(ERROR) << "[C2DEBUG] weights shape: " << weights_shape.first[3] << " " << weights_shape.first[2] << " " << weights_shape.first[1] << " " << weights_shape.first[0];
     auto input_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(input, input_shape.first, input_shape.second, false));
     auto output_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(output, output_shape.first, output_shape.second, false));
     auto weights_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(weights, weights_shape.first, weights_shape.second, false));
@@ -107,6 +109,7 @@ bool CLConvOp<T>::RunOnDevice() {
                             arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]));
     } else if (grouped) {
       for (int i = 0; i < group_; ++i) {
+        LOG(ERROR) << "[C2DEBUG] configure gconv " << i;
         gconv_configure(gconv_[i].get(), X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
                       Y->get_underlying(),
                         arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(), group_, i);
@@ -125,12 +128,27 @@ bool CLConvOp<T>::RunOnDevice() {
     bias_->lazy_allocate(biasblob, second_run_, second_run_);
     second_run_ = false;
     LOG(ERROR) << "[C2DEBUG] second before Y allocate";
+    LOG(INFO) << "[C2DEBUG] dims of X(gctensor) "
+      << X_->get_underlying()->info()->dimension(3) << " "
+      << X_->get_underlying()->info()->dimension(2) << " "
+      << X_->get_underlying()->info()->dimension(1) << " "
+      << X_->get_underlying()->info()->dimension(0) << " "
+    ;
+    LOG(ERROR) << "[C2DEBUG] dims of Y(gctensor) "
+      << Y->get_underlying()->info()->dimension(3) << " "
+      << Y->get_underlying()->info()->dimension(2) << " "
+      << Y->get_underlying()->info()->dimension(1) << " "
+      << Y->get_underlying()->info()->dimension(0) << " "
+    ;
     Y->allocate();
+    LOG(ERROR) << "[C2DEBUG] After Y allocate";
     if (depthwise) {
       depth_conv_.run();
     } else if (grouped) {
+      LOG(ERROR) << "In grouped run";
       for (int i = 0; i < group_; ++i) {
-        gconv_[i]->run();
+        LOG(ERROR) << "gconv_[" << i << "] run.";
+        gconv_[i].get()->run();
       }
     } else {
       LOG(ERROR) << "[C2DEBUG] second before conv_.run()";
@@ -140,14 +158,17 @@ bool CLConvOp<T>::RunOnDevice() {
   } else {
     LOG(ERROR) << "[C2DEBUG] normal run";
     X_->lazy_allocate(Xblob, second_run_, true);
+    LOG(ERROR) << "[C2DEBUG] after X";
     TensorCPU fakeX;
     fakeX.Resize(X_->dims());
     TensorCPU fakeY;
     ConvPoolOpBase<CLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
+    LOG(ERROR) << "[C2DEBUG] after SetOutputSize";
     bool need_allocation = Y->ResizeLike(fakeY, true);
     if (need_allocation) {
       Y->allocate();
     }
+    LOG(ERROR) << "[C2DEBUG] after Y->allocate()";
     if (depthwise) {
       LOG(ERROR) << "[C2DEBUG] Running depthwise conv";
       depth_conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
@@ -162,13 +183,16 @@ bool CLConvOp<T>::RunOnDevice() {
         gconv_[i]->run();
       }
     } else {
+      LOG(ERROR) << "[C2DEBUG] before conv_.configure";
       conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
                       Y->get_underlying(),
                       arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]));
+      LOG(ERROR) << "[C2DEBUG] before conv_.run";
       conv_.run();
+      LOG(ERROR) << "[C2DEBUG] after conv_.run";
     }
  }
-
+  LOG(ERROR) << "[C2DEBUG] after before return";
   return true;
 }
 

@@ -34,7 +34,7 @@ TEST(OPENCLOperatorTest, Conv) {
   ws.RunNetOnce(cpu_net);
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
 
     OperatorDef* def = AddOp(&gpu_net, "Conv", {"cpu_X", "W", "b"}, {"gpu_Y"});
@@ -53,7 +53,7 @@ TEST(OPENCLOperatorTest, ConvReluConv) {
   Workspace ws;
   auto channel_in = 16;
   auto channel_out = 16;
-  auto spatial = 32; // --> 2x2 w no padding, all values 9
+  auto spatial = 32;
   auto kern = 3;
 
   PopulateCPUBlob(&ws, true, "cpu_X", {1, channel_in, spatial, spatial}, 1337);
@@ -62,12 +62,12 @@ TEST(OPENCLOperatorTest, ConvReluConv) {
   PopulateCPUBlob(&ws, true, "W2", {channel_out, channel_in, kern, kern});
   PopulateCPUBlob(&ws, true, "b2", {channel_out});
 
-#define ADD_CONV_ARGS                                                          \
-  {                                                                            \
-    ADD_ARG((*def), "kernel", i, kern);                                           \
-    ADD_ARG((*def), "stride", i, 1);                                              \
-    ADD_ARG((*def), "pad", i, 0);                                                 \
-    ADD_ARG((*def), "order", s, "NCHW");                                          \
+#define ADD_CONV_ARGS                                                   \
+  {                                                                     \
+    ADD_ARG((*def), "kernel", i, kern);                                 \
+    ADD_ARG((*def), "stride", i, 1);                                    \
+    ADD_ARG((*def), "pad", i, 1);                                       \
+    ADD_ARG((*def), "order", s, "NCHW");                                \
   }
 
   NetDef cpu_net;
@@ -87,7 +87,7 @@ TEST(OPENCLOperatorTest, ConvReluConv) {
   ws.RunNetOnce(cpu_net);
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "Conv", {"cpu_X", "W", "b"}, {"gpu_Y"});
     MAKE_OPENCL_OPERATOR(def);
@@ -130,7 +130,7 @@ TEST(OPENCLOperatorTest, ConvBenchmark) {
 
   NetDef gpu_net;
   NetDef cpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
 
   std::string prev_out = "cpu_X";
   for (auto i = 0; i < iters; ++i) {
@@ -189,7 +189,7 @@ TEST(OPENCLOperatorTest, GroupedConv) {
        ws.RunNetOnce(cpu_net);
 
        NetDef gpu_net;
-       gpu_net.set_type("opengl");
+       gpu_net.set_type("opencl");
        {
 
          OperatorDef* def = AddOp(&gpu_net, "Conv", {"cpu_X", "W", "b"}, {"gpu_Y"});
@@ -238,7 +238,7 @@ TEST(OPENCLOperatorTest, DepthwiseConv) {
    ws.RunNetOnce(cpu_net);
 
    NetDef gpu_net;
-   gpu_net.set_type("opengl");
+   gpu_net.set_type("opencl");
    {
 
      OperatorDef* def = AddOp(&gpu_net, "Conv", {"cpu_X", "W", "b"}, {"gpu_Y"});

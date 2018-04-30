@@ -48,7 +48,7 @@ TEST(OPENCLOperatorTest, ConvMaxPoolConv) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "Conv", {"cpu_X", "W", "b"}, {"gpu_Y"});
     MAKE_OPENCL_OPERATOR(def);
@@ -89,12 +89,12 @@ TEST(OPENCLOperatorTest, ConvReluConv) {
   PopulateCPUBlob(&ws, true, "W2", {channel_out, channel_in, kern, kern});
   PopulateCPUBlob(&ws, true, "b2", {channel_out});
 
-#define ADD_CONV_ARGS                                                          \
-  {                                                                            \
-    ADD_ARG((*def), "kernel", i, kern);                                           \
-    ADD_ARG((*def), "stride", i, 1);                                              \
-    ADD_ARG((*def), "pad", i, 1);                                                 \
-    ADD_ARG((*def), "order", s, "NCHW");                                          \
+#define ADD_CONV_ARGS                                                   \
+  {                                                                     \
+    ADD_ARG((*def), "kernel", i, kern);                                 \
+    ADD_ARG((*def), "stride", i, 1);                                    \
+    ADD_ARG((*def), "pad", i, 1);                                       \
+    ADD_ARG((*def), "order", s, "NCHW");                                \
   }
 
   NetDef cpu_net;
@@ -112,7 +112,7 @@ TEST(OPENCLOperatorTest, ConvReluConv) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "Conv", {"cpu_X", "W", "b"}, {"gpu_Y"});
     MAKE_OPENCL_OPERATOR(def);
@@ -130,8 +130,7 @@ TEST(OPENCLOperatorTest, ConvReluConv) {
 
 #undef ADD_CONV_ARGS
 
-  // will work after next release of ACL
-  // compareNetResult4D(ws, cpu_net, gpu_net, "ref_Y2", "gpu_Y2", tol);
+  compareNetResult4D(ws, cpu_net, gpu_net, "ref_Y2", "gpu_Y2", tol);
 
 }
 
@@ -173,7 +172,7 @@ TEST(OPENCLOperatorTest, ConvAddConv) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "Conv", {"cpu_X", "W", "b"}, {"gpu_Y"});
     MAKE_OPENCL_OPERATOR(def);
