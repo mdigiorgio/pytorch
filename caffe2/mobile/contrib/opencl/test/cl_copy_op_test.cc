@@ -2,7 +2,7 @@
 
 namespace caffe2 {
 
-TEST(OPENCLOperatorTest, CopyFromGL) {
+TEST(OPENCLOperatorTest, CopyFromCL) {
 
   for (auto dims: std::vector<std::vector<int>>{
       {1},
@@ -18,9 +18,9 @@ TEST(OPENCLOperatorTest, CopyFromGL) {
     PopulateCPUBlob(&ws, true, std::string("cpu_X"), dims, 1, 0.2, 0.1);
 
     NetDef gpu_net;
-    gpu_net.set_type("opengl");
+    gpu_net.set_type("opencl");
     {
-      OperatorDef* def = AddOp(&gpu_net, "CopyFromGL", {"cpu_X"}, {"cpu_X2"});
+      OperatorDef* def = AddOp(&gpu_net, "CopyFromCL", {"cpu_X"}, {"cpu_X2"});
       MAKE_OPENCL_OPERATOR(def);
     }
     ws.RunNetOnce(gpu_net);

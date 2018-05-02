@@ -341,10 +341,12 @@ private:
 
 template<typename T = DataType>
 void getTensorCPU(const OpenCLTensor<T>& g_, TensorCPU& g) {
-  VLOG(2) << " [C2DEBUG] getTensorCPU " << g_.dims();
+  LOG(ERROR) << " [C2DEBUG] getTensorCPU " << g_.dims();
   g.Resize(g_.dims());
   g_.map();
+  LOG(ERROR) << " [C2DEBUG] getTensorCPU after map()";
   auto tensor = g_.get_underlying();
+  LOG(ERROR) << " [C2DEBUG] getTensorCPU after get_underlying()";
   auto info = tensor->info();
   arm_compute::Window it_window;
   it_window.use_tensor_dimensions(info->tensor_shape(), /* first_dimension =*/arm_compute::Window::DimY); // Iterate through the rows (not each element)
@@ -354,6 +356,7 @@ void getTensorCPU(const OpenCLTensor<T>& g_, TensorCPU& g) {
     auto H = g_.dim32(2);
     auto W = g_.dim32(3);
     arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
+        LOG(ERROR) << "[C2DEBUG] ptr:" << reinterpret_cast<T *>(it.ptr());
         std::copy_n(reinterpret_cast<T *>(it.ptr()), W, g.mutable_data<float>() + id[3] * (C * W * H) + id.z() * (W * H) + id.y() * W);
       },
       it);
@@ -375,7 +378,9 @@ void getTensorCPU(const OpenCLTensor<T>& g_, TensorCPU& g) {
     w.use_tensor_dimensions(info->tensor_shape());
     arm_compute::Iterator i(tensor, w);
     auto size = g_.dim32(0);
+    LOG(ERROR) << "[C2DEBUG] ptr:" << reinterpret_cast<T *>(i.ptr());
     std::copy_n(reinterpret_cast<T *>(i.ptr()), size, g.mutable_data<float>());
+    LOG(ERROR) << "After copy";
   }
   g_.unmap();
 }
