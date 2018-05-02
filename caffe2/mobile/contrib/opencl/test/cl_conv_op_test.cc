@@ -17,13 +17,13 @@ TEST(OPENCLOperatorTest, Conv) {
  PopulateCPUBlob(&ws, true, "W", {channel_out, channel_in, kern, kern}, 1337);
  PopulateCPUBlob(&ws, false, "b", {channel_out}, 0);
 
-#define ADD_CONV_ARGS                                                          \
-  {                                                                            \
-    ADD_ARG((*def), "kernel", i, kern);                                           \
-    ADD_ARG((*def), "stride", i, 1);                                              \
-    ADD_ARG((*def), "pad", i, 0);                                                 \
-    ADD_ARG((*def), "order", s, "NCHW");                                          \
-  }
+#define ADD_CONV_ARGS                                                   \
+ {                                                                      \
+   ADD_ARG((*def), "kernel", i, kern);                                  \
+   ADD_ARG((*def), "stride", i, 1);                                     \
+   ADD_ARG((*def), "pad", i, 0);                                        \
+   ADD_ARG((*def), "order", s, "NCHW");                                 \
+ }
 
   NetDef cpu_net;
   {

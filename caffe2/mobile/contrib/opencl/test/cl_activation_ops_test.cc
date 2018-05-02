@@ -13,7 +13,7 @@ TEST(OPENCLOperatorTest, Sigmoid) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "Sigmoid", {"cpu_X"}, {"gpu_Y"});
     MAKE_OPENCL_OPERATOR(def);
@@ -33,7 +33,7 @@ TEST(OPENCLOperatorTest, ReLU) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "Relu", {"cpu_X"}, {"gpu_Y"});
     MAKE_OPENCL_OPERATOR(def);
@@ -54,7 +54,7 @@ TEST(OPENCLOperatorTest, SigmoidTwice) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "Sigmoid", {"cpu_X"}, {"gpu_Y1"});
     MAKE_OPENCL_OPERATOR(def);

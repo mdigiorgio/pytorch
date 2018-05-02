@@ -29,10 +29,10 @@ private:
     const auto& output_shape = compute_output_shape(output->info()->tensor_shape(), groups, 2, idx);
     LOG(ERROR) << "[C2DEBUG] input shape: " << input_shape.first[3] << " " << input_shape.first[2] << " " << input_shape.first[1] << " " << input_shape.first[0];
     LOG(ERROR) << "[C2DEBUG] weights shape: " << weights_shape.first[3] << " " << weights_shape.first[2] << " " << weights_shape.first[1] << " " << weights_shape.first[0];
-    auto input_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(input, input_shape.first, input_shape.second, false));
-    auto output_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(output, output_shape.first, output_shape.second, false));
-    auto weights_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(weights, weights_shape.first, weights_shape.second, false));
-    auto biases_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(biases, biases_shape.first, biases_shape.second, false));
+    auto input_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(input, input_shape.first, input_shape.second, true));
+    auto output_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(output, output_shape.first, output_shape.second, true));
+    auto weights_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(weights, weights_shape.first, weights_shape.second, true));
+    auto biases_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(biases, biases_shape.first, biases_shape.second, true));
     conv->configure(input_.get(), output_.get(), weights_.get(), biases_.get(), conv_info, weights_info);
   }
   arm_compute::CLConvolutionLayer conv_;

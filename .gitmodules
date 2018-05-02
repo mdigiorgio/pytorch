@@ -70,7 +70,7 @@
 	url = https://github.com/benjaminp/six.git
 [submodule "third_party/ComputeLibrary"]
 	path = third_party/ComputeLibrary
-	url = git@github.com:ARM-software/ComputeLibraryGLES.git
+	url = git@github.com:mdigiorgio/ComputeLibraryGLES.git
 [submodule "third_party/onnx"]
 	path = third_party/onnx
 	url = https://github.com/onnx/onnx.git
