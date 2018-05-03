@@ -61,6 +61,7 @@ bool CopyFromCLOp<T>::RunOnDevice() {
       auto millis = timer.MilliSeconds();
       //LOG(ERROR) << "[C2DEBUG] copy_op " << X->dims() << " takes " << millis << " milliseconds";
     }
+    second_run_ = false;
   }
 
   return true;

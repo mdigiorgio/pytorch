@@ -47,11 +47,11 @@ bool CLConvOp<T>::RunOnDevice() {
   auto *Xblob = OperatorBase::Inputs()[0];
   auto *filterblob = OperatorBase::Inputs()[1];
   auto *biasblob = OperatorBase::Inputs()[2];
-  X_ = CLContext::getCLTensor<T>(Xblob, X_.release());
-  if (first_run_) {
-    filter_ = CLContext::getCLTensor<T>(filterblob);
-    bias_ = CLContext::getCLTensor<T>(biasblob);
-  }
+  X_ = CLContext::getCLTensor<T>(Xblob);
+  //if (first_run_) {
+  filter_ = CLContext::getCLTensor<T>(filterblob);
+  bias_ = CLContext::getCLTensor<T>(biasblob);
+  //}
 
   OpenCLTensor<T> *Y =
     OperatorBase::Outputs()[0]->template GetMutable<OpenCLTensor<T>>();
@@ -158,6 +158,8 @@ bool CLConvOp<T>::RunOnDevice() {
   } else {
     LOG(ERROR) << "[C2DEBUG] normal run";
     X_->lazy_allocate(Xblob, second_run_, true);
+    filter_->lazy_allocate(filterblob, second_run_, true);
+    bias_->lazy_allocate(biasblob, second_run_, true);
     LOG(ERROR) << "[C2DEBUG] after X";
     TensorCPU fakeX;
     fakeX.Resize(X_->dims());
@@ -166,6 +168,7 @@ bool CLConvOp<T>::RunOnDevice() {
     LOG(ERROR) << "[C2DEBUG] after SetOutputSize";
     bool need_allocation = Y->ResizeLike(fakeY, true);
     if (need_allocation) {
+      LOG(ERROR) << "[C2DEBUG] Y->allocate() in third run.";
       Y->allocate();
     }
     LOG(ERROR) << "[C2DEBUG] after Y->allocate()";
