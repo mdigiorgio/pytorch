@@ -23,7 +23,7 @@ TEST(OPENCLOperatorTest, FC) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "FC", {"cpu_X", "cpu_W", "cpu_B"}, {"gpu_Y"});
     MAKE_OPENCL_OPERATOR(def);

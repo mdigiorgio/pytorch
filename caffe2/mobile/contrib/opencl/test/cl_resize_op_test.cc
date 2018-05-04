@@ -20,7 +20,7 @@ TEST(OPENCLOperatorTest, ResizeNearest) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "ResizeNearest", {"cpu_X"}, {"gpu_Y"});
     MAKE_OPENCL_OPERATOR(def);

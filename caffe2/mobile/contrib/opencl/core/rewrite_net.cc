@@ -144,7 +144,8 @@ static bool tryFuseAdjacentOps(const OperatorDef& currentOp,
   }
 
   static const std::map<std::pair<std::string, std::string>, std::string> fusionOpportunities = {
-    {{"Conv", "Relu"}, "ConvRelu"}};
+    {{"Conv", "Relu"}, "ConvRelu"},
+    {{"Conv", "Sigmoid"}, "ConvSigmoid"}};
   auto it = fusionOpportunities.find({currentOp.type(), nextOp.type()});
   if (it == fusionOpportunities.end()) {
     return false;

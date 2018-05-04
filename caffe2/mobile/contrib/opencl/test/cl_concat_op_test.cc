@@ -28,7 +28,7 @@ TEST(OPENCLOperatorTest, Concat) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "Concat", {}, {"gpu_Y", "gpu_dummy"});
     MAKE_OPENCL_OPERATOR(def);

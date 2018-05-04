@@ -16,7 +16,7 @@ TEST(OPENCLOperatorTest, AveragePool) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "AveragePool", {"cpu_X"}, {"gpu_Y"});
     ADD_ARG((*def), "kernel", i, 2);
@@ -44,7 +44,7 @@ TEST(OPENCLOperatorTest, MaxPool) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "MaxPool", {"cpu_X"}, {"gpu_Y"});
     ADD_ARG((*def), "kernel", i, 2);
@@ -72,7 +72,7 @@ TEST(OPENCLOperatorTest, AverageGlobalPool) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "AveragePool", {"cpu_X"}, {"gpu_Y"});
     ADD_ARG((*def), "global_pooling", i, 1);

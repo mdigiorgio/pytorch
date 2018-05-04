@@ -15,7 +15,7 @@ TEST(OPENCLOperatorTest, Sum) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "Sum", {"cpu_X", "cpu_Y"}, {"gpu_Y"});
     MAKE_OPENCL_OPERATOR(def);

@@ -21,7 +21,7 @@ TEST(OPENCLOperatorTest, SpatialBN) {
   }
 
   NetDef gpu_net;
-  gpu_net.set_type("opengl");
+  gpu_net.set_type("opencl");
   {
     OperatorDef* def = AddOp(&gpu_net, "SpatialBN", {"cpu_X", "cpu_scale", "cpu_bias", "cpu_mean", "cpu_var"}, {"gpu_Y"});
     MAKE_OPENCL_OPERATOR(def);

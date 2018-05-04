@@ -6,7 +6,24 @@
 
 namespace caffe2 {
 
-template <typename T>
+struct EmptyActivation {
+  static string act() {
+    return "";
+  }
+};
+
+struct ReluActivation {
+  static string act() {
+    return "relu";
+  }
+};
+
+struct SigmoidActivation {
+  static string act() {
+    return "sigmoid";
+  }
+};
+template <typename T, typename Activation>
 class CLConvOp final : public ConvPoolOpBase<CLContext> {
  public:
   USE_CONV_POOL_BASE_FUNCTIONS(CLContext);
@@ -29,6 +46,7 @@ private:
     const auto& output_shape = compute_output_shape(output->info()->tensor_shape(), groups, 2, idx);
     LOG(ERROR) << "[C2DEBUG] input shape: " << input_shape.first[3] << " " << input_shape.first[2] << " " << input_shape.first[1] << " " << input_shape.first[0];
     LOG(ERROR) << "[C2DEBUG] weights shape: " << weights_shape.first[3] << " " << weights_shape.first[2] << " " << weights_shape.first[1] << " " << weights_shape.first[0];
+    LOG(ERROR) << "[C2DEBUG] bias shape: " << biases_shape.first[0];
     auto input_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(input, input_shape.first, input_shape.second, true));
     auto output_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(output, output_shape.first, output_shape.second, true));
     auto weights_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(weights, weights_shape.first, weights_shape.second, true));
@@ -42,16 +60,14 @@ private:
   CLContext::deleted_unique_ptr<const OpenCLTensor<T>> X_, filter_, bias_;
 };
 
-template <typename T>
-bool CLConvOp<T>::RunOnDevice() {
+template <typename T, typename Activation>
+bool CLConvOp<T, Activation>::RunOnDevice() {
   auto *Xblob = OperatorBase::Inputs()[0];
   auto *filterblob = OperatorBase::Inputs()[1];
   auto *biasblob = OperatorBase::Inputs()[2];
   X_ = CLContext::getCLTensor<T>(Xblob);
-  //if (first_run_) {
   filter_ = CLContext::getCLTensor<T>(filterblob);
   bias_ = CLContext::getCLTensor<T>(biasblob);
-  //}
 
   OpenCLTensor<T> *Y =
     OperatorBase::Outputs()[0]->template GetMutable<OpenCLTensor<T>>();
@@ -88,15 +104,15 @@ bool CLConvOp<T>::RunOnDevice() {
     ConvPoolOpBase<CLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
     LOG(ERROR) << "[C2DEBUG] fakeY: " << fakeY.dims();
     Y->ResizeLike(fakeY);
-    LOG(INFO) << "[C2DEBUG] dims of X " << X_->dims();
-    LOG(INFO) << "[C2DEBUG] dims of X(gctensor) "
+    LOG(ERROR) << "[C2DEBUG] dims of X " << X_->dims();
+    LOG(ERROR) << "[C2DEBUG] dims of X(gctensor) "
       << X_->get_underlying()->info()->dimension(3) << " "
       << X_->get_underlying()->info()->dimension(2) << " "
       << X_->get_underlying()->info()->dimension(1) << " "
       << X_->get_underlying()->info()->dimension(0) << " "
     ;
-    LOG(INFO) << "[C2DEBUG] dims of Y " << Y->dims();
-    LOG(INFO) << "[C2DEBUG] dims of Y(gctensor) "
+    LOG(ERROR) << "[C2DEBUG] dims of Y " << Y->dims();
+    LOG(ERROR) << "[C2DEBUG] dims of Y(gctensor) "
       << Y->get_underlying()->info()->dimension(3) << " "
       << Y->get_underlying()->info()->dimension(2) << " "
       << Y->get_underlying()->info()->dimension(1) << " "
@@ -115,11 +131,23 @@ bool CLConvOp<T>::RunOnDevice() {
                         arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(), group_, i);
       }
     } else {
-      conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
-                      Y->get_underlying(),
-                      arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]));
+      string activation = Activation::act();
+      if (activation == "") {
+        conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
+                        Y->get_underlying(),
+                        arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]));
+      } else {
+        arm_compute::ActivationLayerInfo act_info;
+        if (activation == "relu") {
+          act_info = arm_compute::ActivationLayerInfo(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
+        } else if (activation == "sigmoid") {
+          act_info = arm_compute::ActivationLayerInfo(arm_compute::ActivationLayerInfo::ActivationFunction::LOGISTIC);
+        }
+        conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
+                        Y->get_underlying(),
+                        arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(), arm_compute::Size2D(1, 1), act_info);
+      }
     }
-
   } else if (second_run_) {
     LOG(ERROR) << "[C2DEBUG] second";
     // Always attempt to copy the CPU to GPU on input
@@ -199,6 +227,8 @@ bool CLConvOp<T>::RunOnDevice() {
   return true;
 }
 
-REGISTER_CL_OPERATOR(Conv, CLConvOp<DataType>);
+REGISTER_CL_OPERATOR(Conv, CLConvOp<DataType, EmptyActivation>);
+REGISTER_CL_OPERATOR(ConvRelu, CLConvOp<DataType, ReluActivation>);
+REGISTER_CL_OPERATOR(ConvSigmoid, CLConvOp<DataType, SigmoidActivation>);
 
 } // namespace caffe2
