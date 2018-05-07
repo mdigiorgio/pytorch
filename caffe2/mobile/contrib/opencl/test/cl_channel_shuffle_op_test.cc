@@ -3,8 +3,6 @@
 namespace caffe2 {
 
 TEST(OPENCLOperatorTest, ChannelShuffle) {
-  Workspace ws;
-
   for (auto input_dims: std::vector<std::vector<int>>({
         {1, 16, 20, 20},
         {2, 16, 20, 20},
@@ -12,7 +10,9 @@ TEST(OPENCLOperatorTest, ChannelShuffle) {
         {1, 128, 23, 20},
         {1, 112, 23, 20},
           })) {
-    for (auto groups: std::vector<int>({1, 4, 8})){
+    for (auto groups: std::vector<int>({2, 4, 8})){
+      Workspace ws;
+
       PopulateCPUBlob(&ws, true, "cpu_X", input_dims);
 
       NetDef cpu_net;

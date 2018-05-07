@@ -51,11 +51,11 @@ private:
     auto output_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(output, output_shape.first, output_shape.second, true));
     auto weights_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(weights, weights_shape.first, weights_shape.second, true));
     auto biases_ = std::unique_ptr<arm_compute::CLSubTensor>(new arm_compute::CLSubTensor(biases, biases_shape.first, biases_shape.second, true));
-    conv->configure(input_.get(), output_.get(), weights_.get(), biases_.get(), conv_info, weights_info);
+    conv->configure(input_.get(), weights_.get(), biases_.get(), output_.get(), conv_info, weights_info);
   }
   arm_compute::CLConvolutionLayer conv_;
   std::vector<std::unique_ptr<arm_compute::CLConvolutionLayer>> gconv_;
-  arm_compute::CLDepthwiseConvolutionLayer depth_conv_;
+  arm_compute::CLDepthwiseConvolutionLayer3x3 depth_conv_;
   bool first_run_ = true, second_run_ = true;
   CLContext::deleted_unique_ptr<const OpenCLTensor<T>> X_, filter_, bias_;
 };
@@ -65,9 +65,9 @@ bool CLConvOp<T, Activation>::RunOnDevice() {
   auto *Xblob = OperatorBase::Inputs()[0];
   auto *filterblob = OperatorBase::Inputs()[1];
   auto *biasblob = OperatorBase::Inputs()[2];
-  X_ = CLContext::getCLTensor<T>(Xblob);
-  filter_ = CLContext::getCLTensor<T>(filterblob);
-  bias_ = CLContext::getCLTensor<T>(biasblob);
+  X_ = CLContext::getCLTensor<T>(Xblob, X_.release());
+  filter_ = CLContext::getCLTensor<T>(filterblob, filter_.release());
+  bias_ = CLContext::getCLTensor<T>(biasblob, bias_.release());
 
   OpenCLTensor<T> *Y =
     OperatorBase::Outputs()[0]->template GetMutable<OpenCLTensor<T>>();
@@ -87,6 +87,9 @@ bool CLConvOp<T, Activation>::RunOnDevice() {
   CAFFE_ENFORCE(C % group_ == 0);
   CAFFE_ENFORCE(M % group_ == 0);
   CAFFE_ENFORCE(filter_->dim32(1) == C / group_);
+
+  // Weights are being resused between runs, hence we need to specifiy to retain them if they were marked as unused
+  bool retain_internal_weights = !filter_->get_underlying()->is_used();
 
   if (first_run_) {
     if (grouped) {
@@ -118,6 +121,13 @@ bool CLConvOp<T, Activation>::RunOnDevice() {
       << Y->get_underlying()->info()->dimension(1) << " "
       << Y->get_underlying()->info()->dimension(0) << " "
     ;
+    LOG(ERROR) << "[C2DEBUG] dims of filter_ " << filter_->dims();
+    LOG(ERROR) << "[C2DEBUG] dims of filter_(gctensor) "
+      << filter_->get_underlying()->info()->dimension(3) << " "
+      << filter_->get_underlying()->info()->dimension(2) << " "
+      << filter_->get_underlying()->info()->dimension(1) << " "
+      << filter_->get_underlying()->info()->dimension(0) << " "
+    ;
 
     if (depthwise) {
       depth_conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
@@ -128,7 +138,8 @@ bool CLConvOp<T, Activation>::RunOnDevice() {
         LOG(ERROR) << "[C2DEBUG] configure gconv " << i;
         gconv_configure(gconv_[i].get(), X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
                       Y->get_underlying(),
-                        arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(), group_, i);
+                        arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(false, 0, 0, 0, retain_internal_weights), group_, i);
+        retain_internal_weights = true;
       }
     } else {
       string activation = Activation::act();
@@ -171,11 +182,12 @@ bool CLConvOp<T, Activation>::RunOnDevice() {
     Y->allocate();
     LOG(ERROR) << "[C2DEBUG] After Y allocate";
     if (depthwise) {
+      LOG(ERROR) << "[C2DEBUG] depthwise";
       depth_conv_.run();
     } else if (grouped) {
-      LOG(ERROR) << "In grouped run";
+      LOG(ERROR) << "[C2DEBUG] In grouped run";
       for (int i = 0; i < group_; ++i) {
-        LOG(ERROR) << "gconv_[" << i << "] run.";
+        LOG(ERROR) << "[C2DEBUG] gconv_[" << i << "] run.";
         gconv_[i].get()->run();
       }
     } else {
@@ -210,14 +222,15 @@ bool CLConvOp<T, Activation>::RunOnDevice() {
       for (int i = 0; i < group_; ++i) {
         gconv_configure(gconv_[i].get(), X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
                       Y->get_underlying(),
-                        arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(), group_, i);
+                        arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(false, 0, 0, 0, retain_internal_weights), group_, i);
         gconv_[i]->run();
+        retain_internal_weights = true;
       }
     } else {
       LOG(ERROR) << "[C2DEBUG] before conv_.configure";
       conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
                       Y->get_underlying(),
-                      arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]));
+                      arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(false, 0, 0, 0, retain_internal_weights));
       LOG(ERROR) << "[C2DEBUG] before conv_.run";
       conv_.run();
       LOG(ERROR) << "[C2DEBUG] after conv_.run";
