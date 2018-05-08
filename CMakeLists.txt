@@ -71,6 +71,10 @@ option(USE_ZSTD "Use ZSTD" OFF)
 option(USE_IDEEP "Use IDEEP interface in MKL BLAS" ON)
 option(USE_MKLML "Use MKLML interface in MKL BLAS" ON)
 
+# ---[ Special code path for MKL module
+if (NOT USE_ATEN)
+  set(USE_MKL_IDEEP_OR_MKLML ON)
+endif()
 
 # ---[ CMake scripts + modules
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/Modules)
@@ -142,6 +146,9 @@ else()
     set(${flag_var} "${${flag_var}} /MP /bigobj")
   endforeach(flag_var)
 endif()
+
+set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+set (CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_STATIC_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
 
 if(ANDROID)
   if(CMAKE_COMPILER_IS_GNUCXX)

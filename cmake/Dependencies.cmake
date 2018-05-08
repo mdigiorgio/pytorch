@@ -392,8 +392,8 @@ if(USE_CUDA)
     else()
       LIST(APPEND Caffe2_PUBLIC_CUDA_DEPENDENCY_LIBS caffe2::cublas)
     endif()
-    if(USE_TENSORRT) 
-      list(APPEND Caffe2_PUBLIC_CUDA_DEPENDENCY_LIBS caffe2::tensorrt) 
+    if(USE_TENSORRT)
+      list(APPEND Caffe2_PUBLIC_CUDA_DEPENDENCY_LIBS caffe2::tensorrt)
     endif()
   else()
     message(WARNING
@@ -577,6 +577,9 @@ endif()
 
 if (USE_ATEN)
   list(APPEND Caffe2_DEPENDENCY_LIBS aten_op_header_gen ATen)
+  if (USE_CUDA)
+    list(APPEND Caffe2_CUDA_DEPENDENCY_LIBS aten_op_header_gen ATen)
+  endif()
   include_directories(${PROJECT_BINARY_DIR}/caffe2/contrib/aten/aten/src/ATen)
   include_directories(${PROJECT_SOURCE_DIR}/aten/src)
   include_directories(${PROJECT_BINARY_DIR}/caffe2/contrib/aten)
@@ -598,6 +601,13 @@ set(TEMP_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
 # We will build onnx as static libs and embed it directly into the binary.
 set(BUILD_SHARED_LIBS OFF)
 set(ONNX_USE_MSVC_STATIC_RUNTIME ${CAFFE2_USE_MSVC_STATIC_RUNTIME})
+
+
+# See https://stackoverflow.com/questions/3766740/overriding-a-default-option-value-in-cmake-from-a-parent-cmakelists-txt
+set(ONNX_NO_WERROR ON CACHE BOOL "Disable use of Werror")
+
+
+
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/onnx)
 include_directories(${ONNX_INCLUDE_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DONNX_NAMESPACE=${ONNX_NAMESPACE}")
@@ -613,11 +623,11 @@ list(APPEND Caffe2_DEPENDENCY_WHOLE_LINK_LIBS onnx_library)
 set(BUILD_SHARED_LIBS ${TEMP_BUILD_SHARED_LIBS})
 
 # --[ TensorRT integration with onnx-trt
-if (USE_TENSORRT) 
+if (USE_TENSORRT)
   set(CMAKE_CUDA_COMPILER ${CUDA_NVCC_EXECUTABLE})
-  add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/onnx-trt)
-  include_directories("${PROJECT_SOURCE_DIR}/third_party/onnx-trt")
-  caffe2_interface_library(onnx2trt_importer_static onnx_trt_library)
+  add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/onnx-tensorrt)
+  include_directories("${PROJECT_SOURCE_DIR}/third_party/onnx-tensorrt")
+  caffe2_interface_library(nvonnxparser_static onnx_trt_library)
   list(APPEND Caffe2_DEPENDENCY_WHOLE_LINK_LIBS onnx_trt_library)
   set(CAFFE2_USE_TRT 1)
 endif()

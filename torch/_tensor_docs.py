@@ -139,9 +139,9 @@ Args:
 Example::
 
     >>> tensor = torch.tensor((), dtype=torch.float64)
-    >>> tensor.new_ones((2, 3))
-    tensor([[ 1.,  1.,  1.],
-            [ 1.,  1.,  1.]], dtype=torch.float64)
+    >>> tensor.new_zeros((2, 3))
+    tensor([[ 0.,  0.,  0.],
+            [ 0.,  0.,  0.]], dtype=torch.float64)
 
 """.format(**new_common_args))
 
@@ -1028,7 +1028,7 @@ add_docstr_all('item', r"""
 item() -> number
 
 Returns the value of this tensor as a standard Python number. This only works
-for tensors with one element.
+for tensors with one element. For other cases, see :meth:`~Tensor.tolist`.
 
 This operation is not differentiable.
 
@@ -2105,6 +2105,26 @@ add_docstr_all('tanh_',
 tanh_() -> Tensor
 
 In-place version of :meth:`~Tensor.tanh`
+""")
+
+add_docstr_all('tolist',
+               r""""
+tolist() -> list or number
+
+Returns the tensor as a (nested) list. For scalars, a standard
+Python number is returned, just like with :meth:`~Tensor.item`.
+Tensors are automatically moved to the CPU first if necessary.
+
+This operation is not differentiable.
+
+Examples::
+
+    >>> a = torch.randn(2, 2)
+    >>> a.tolist()
+    [[0.012766935862600803, 0.5415473580360413],
+     [-0.08909505605697632, 0.7729271650314331]]
+    >>> a[0,0].tolist()
+    0.012766935862600803
 """)
 
 add_docstr_all('topk',

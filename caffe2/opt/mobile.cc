@@ -1,6 +1,7 @@
-#include "caffe2/opt/converter.h"
 #include "caffe2/opt/mobile.h"
 #include "caffe2/core/logging.h"
+#include "caffe2/opt/converter.h"
+#include "caffe2/opt/fuse_conv_relu.h"
 
 namespace caffe2 {
 namespace opt {
@@ -75,19 +76,21 @@ caffe2::NetDef addNNPACK(caffe2::NetDef net, bool low_memory) {
       precompute_argument->set_s("PRECOMPUTE");
     }
   }
-  return convertToCaffe2Proto(nn);
+  return convertToCaffe2Proto(nn, net);
 }
 
 namespace {
 
-inline bool isNNPACKConvReluEfficient(std::string algo, repr::Conv* conv) {
+inline bool isNNPACKConvReluEfficient(
+    const std::string& algo,
+    const repr::Conv& conv) {
   if (algo == "AUTO" || algo == "") {
-    for (auto stride : conv->getStrides()) {
+    for (auto stride : conv.getStrides()) {
       if (stride > 1) {
         return false;
       }
     }
-    for (auto kernel : conv->getKernelShape()) {
+    for (auto kernel : conv.getKernelShape()) {
       if (kernel < 2) {
         return false;
       }
@@ -103,60 +106,44 @@ inline bool isNNPACKConvReluEfficient(std::string algo, repr::Conv* conv) {
 
 caffe2::NetDef fuseNNPACKConvRelu(caffe2::NetDef net) {
   auto nn = convertToNNModule(net);
-  for (auto node_pair : repr::nn::dataIterator<repr::Conv>(nn.dataFlow)) {
-    repr::NNGraph::NodeRef conv_node;
-    repr::Conv* conv;
-    std::tie(conv, conv_node) = node_pair;
-
-    auto conv_outputs = repr::nn::getOutputs(conv_node);
-    if (conv_outputs.size() != 1) {
-      continue;
-    }
-    auto conv_output = conv_outputs.front();
-
-    auto consumers = repr::nn::getConsumers(conv_output);
-    if (consumers.size() != 1) {
-      continue;
-    }
-    if (!repr::nn::is<repr::Relu>(consumers.front())) {
-      continue;
-    }
-    auto relu_node = consumers.front();
-
-    auto annotation = conv->getMutableAnnotation();
+  auto should_fuse = [](const repr::Conv& conv) {
+    const auto annotation = conv.getAnnotation();
     if (!annotation || !isa<Caffe2Annotation>(annotation)) {
-      continue;
+      return false;
     }
-    auto* op = dyn_cast<Caffe2Annotation>(annotation)->getMutableOperatorDef();
+    const auto* op = dyn_cast<Caffe2Annotation>(annotation)->getOperatorDef();
 
     // We only want to fuse for fast NNPACK convs
     if (op->engine() != "NNPACK") {
-      continue;
+      return false;
     }
     caffe2::string algo = "AUTO";
-    for (auto arg : op->arg()) {
+    for (const auto arg : op->arg()) {
       if (arg.name() == "algo") {
         algo = arg.s();
       }
     }
     if (!isNNPACKConvReluEfficient(algo, conv)) {
-      continue;
+      return false;
     }
+    return true;
+  };
 
-    auto relu_outputs = repr::nn::getOutputs(relu_node);
-    if (relu_outputs.size() != 1) {
-      continue;
+  auto postprocess = [](repr::NNGraph::NodeRef conv_node) {
+    auto conv = repr::nn::get<repr::Conv>(conv_node);
+    auto annotation = conv->getMutableAnnotation();
+    if (!annotation || !isa<Caffe2Annotation>(annotation)) {
+      return;
     }
-    auto relu_output = relu_outputs.front();
-
-    nn.dataFlow.replaceNode(relu_output, conv_output);
-    nn.dataFlow.deleteNode(relu_node);
-    nn.dataFlow.deleteNode(relu_output);
+    auto* op = dyn_cast<Caffe2Annotation>(annotation)->getMutableOperatorDef();
     auto* arg = op->add_arg();
     arg->set_name("activation");
     arg->set_s("Relu");
-  }
-  return convertToCaffe2Proto(nn);
+  };
+
+  fuseConvRelu(&nn, should_fuse, postprocess);
+
+  return convertToCaffe2Proto(nn, net);
 }
 
 caffe2::NetDef tryConvertToACLOpenCL(caffe2::NetDef net, bool runFusion, std::unordered_set<std::string> cpuOps) {

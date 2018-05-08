@@ -55,6 +55,14 @@ class Edge : public StorageType<U> {
     return Head;
   }
 
+  void setTail(NodeRef n) {
+    Tail = n;
+  }
+
+  void setHead(NodeRef n) {
+    Head = n;
+  }
+
  private:
   NodeRef Tail;
   NodeRef Head;
@@ -90,6 +98,7 @@ class Node : public StorageType<T>, public Notifier<Node<T, U>> {
   /// \p e A reference to an edge that will be removed from in-edges.
   void removeInEdge(EdgeRef e) {
     auto iter = std::find(inEdges.begin(), inEdges.end(), e);
+    assert(iter != inEdges.end() && "Attempted to remove edge that isn't connected to this node");
     inEdges.erase(iter);
   }
 
@@ -97,6 +106,7 @@ class Node : public StorageType<T>, public Notifier<Node<T, U>> {
   /// \p e A reference to an edge that will be removed from out-edges.
   void removeOutEdge(EdgeRef e) {
     auto iter = std::find(outEdges.begin(), outEdges.end(), e);
+    assert(iter != outEdges.end() && "Attempted to remove edge that isn't connected to this node");
     outEdges.erase(iter);
   }
 
@@ -105,6 +115,14 @@ class Node : public StorageType<T>, public Notifier<Node<T, U>> {
   }
   const std::vector<EdgeRef>& getInEdges() const {
     return inEdges;
+  }
+
+  void setInEdges(std::vector<EdgeRef> es) {
+    inEdges = es;
+  }
+
+  void setOutEdges(std::vector<EdgeRef> es) {
+    outEdges = es;
   }
 
  protected:
@@ -204,7 +222,7 @@ class Graph {
     return &Nodes.back();
   }
 
-  void swapNode(NodeRef node, Graph<T, U>& otherGraph) {
+  void importNode(NodeRef node, Graph<T, U>& otherGraph) {
     std::list<Node<T, U>>& otherNodes = otherGraph.Nodes;
     for (auto it = Nodes.begin(); it != Nodes.end(); ++it) {
       if (&(*it) == node) {
@@ -214,7 +232,7 @@ class Graph {
     }
   }
 
-  void swapEdge(EdgeRef edge, Graph<T, U>& otherGraph) {
+  void importEdge(EdgeRef edge, Graph<T, U>& otherGraph) {
     std::list<Edge<T, U>>& otherEdges = otherGraph.Edges;
     for (auto it = Edges.begin(); it != Edges.end(); ++it) {
       if (&(*it) == edge) {
@@ -222,6 +240,32 @@ class Graph {
         break;
       }
     }
+  }
+
+  void swapNodes(NodeRef n1, NodeRef n2) {
+    // First rectify the edges
+    for (auto& inEdge : n1->getInEdges()) {
+      inEdge->setHead(n2);
+    }
+    for (auto& outEdge : n1->getOutEdges()) {
+      outEdge->setTail(n2);
+    }
+    for (auto& inEdge : n2->getInEdges()) {
+      inEdge->setHead(n1);
+    }
+    for (auto& outEdge : n2->getOutEdges()) {
+      outEdge->setTail(n1);
+    }
+    // Then simply copy the edge vectors around
+    auto n1InEdges = n1->getInEdges();
+    auto n1OutEdges = n1->getOutEdges();
+    auto n2InEdges = n2->getInEdges();
+    auto n2OutEdges = n2->getOutEdges();
+
+    n1->setOutEdges(n2OutEdges);
+    n1->setInEdges(n2InEdges);
+    n2->setOutEdges(n1OutEdges);
+    n2->setInEdges(n1InEdges);
   }
 
   NodeRef createNode() {
@@ -248,17 +292,15 @@ class Graph {
     const auto outEdges = old->getOutEdges();
 
     for (const auto& inEdge : inEdges) {
-      createEdge(inEdge->tail(), newTail);
-    }
-    for (const auto& inEdge : inEdges) {
-      deleteEdge(inEdge);
+      inEdge->setHead(newTail);
+      old->removeInEdge(inEdge);
+      newTail->addInEdge(inEdge);
     }
 
     for (const auto& outEdge : outEdges) {
-      createEdge(newHead, outEdge->head());
-    }
-    for (const auto& outEdge : outEdges) {
-      deleteEdge(outEdge);
+      outEdge->setTail(newHead);
+      old->removeOutEdge(outEdge);
+      newTail->addOutEdge(outEdge);
     }
   }
 

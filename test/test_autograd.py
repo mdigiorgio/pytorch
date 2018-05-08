@@ -621,8 +621,9 @@ class TestAutograd(TestCase):
             for i in range(depth):
                 y = y + y * 0.000001
 
-            # triggers graph deletion
-            del x
+            # graph deletion occurs when the above locals go out of scope.
+            # In this case `del y` will trigger it but it's easier to leave
+            # it to Python to delete the locals.
 
         # Should not stack overflow
         scope()
@@ -652,8 +653,7 @@ class TestAutograd(TestCase):
                 if nprev == 2:
                     y += randchoice[depth].mul(torch.cat(prev_tensors)).sum()
 
-            # triggers graph deletion
-            del x
+            # graph deletion occurs when the above locals go out of scope.
 
         # Should not stack overflow
         scope()
@@ -677,8 +677,7 @@ class TestAutograd(TestCase):
             for i in range(depth):
                 y = MyOp.apply(y, y)
 
-            # triggers graph deletion
-            del x
+            # graph deletion occurs when the above locals go out of scope.
 
         # Should not stack overflow
         scope()
@@ -2229,6 +2228,44 @@ class TestAutograd(TestCase):
         d, = torch.autograd.grad(c, a, retain_graph=True, create_graph=True)
         self.assertTrue(d.requires_grad)
 
+    @staticmethod
+    def _test_set_requires_grad_only_for_floats(self, cuda):
+        dtypes = [torch.int64, torch.int32, torch.int16, torch.int8,
+                  torch.float, torch.double]
+        if cuda:
+            dtypes.append(torch.half)
+
+        def f1(dt):
+            a = torch.ones(1, dtype=dt, device='cuda' if cuda else 'cpu')
+            a.requires_grad_()
+
+        def f2(dt):
+            a = torch.ones(1, dtype=dt, device='cuda' if cuda else 'cpu')
+            a.requires_grad = True
+
+        def f3(dt):
+            torch.ones(1, dtype=dt, device='cuda' if cuda else 'cpu', requires_grad=True)
+
+        for dt in dtypes:
+            a = torch.ones(1, dtype=dt, device='cuda' if cuda else 'cpu')
+            a.requires_grad = False  # should always work
+            a.requires_grad_(False)
+
+            for f in [f1, f2, f3]:
+                if dt.is_floating_point:
+                    f(dt)
+                else:
+                    with self.assertRaisesRegex(RuntimeError, 'floating point',
+                                                msg="dt: {} device: {}".format(a.dtype, a.device)):
+                        f(dt)
+
+    @unittest.skipIf(not torch.cuda.is_available(), "CUDA unavailable")
+    def test_set_requires_grad_only_for_floats_cuda(self):
+        self._test_set_requires_grad_only_for_floats(self, True)
+
+    def test_set_requires_grad_only_for_floats(self):
+        self._test_set_requires_grad_only_for_floats(self, False)
+
 
 def index_variable(shape, max_indices):
     if not isinstance(shape, tuple):
@@ -2584,6 +2621,8 @@ method_tests = [
     ('sum', (), NO_ARGS, 'scalar'),
     ('sum', (), (0,), 'scalar_dim', [0]),
     ('sum', (), (0, True,), 'scalar_keepdim_dim', [0]),
+    ('sum', (S, S, S), ([1, 2],), 'multi_dim'),
+    ('sum', (S, S, S), ([1, 2], True,), 'multi_dim_keepdim'),
     ('prod', (S, S, S), NO_ARGS),
     ('prod', (S, S, S), (1,), 'dim', [0]),
     ('prod', (S, S, S), (1, True,), 'keepdim_dim', [0]),

@@ -161,6 +161,24 @@ class PackedSequenceTest(TestCase):
                     ref_output = torch.cat([no_extra_pad, extra_pad], 0)
                 self.assertEqual(unpacked, ref_output)
 
+    def test_to(self):
+        padded, lengths = self._padded_sequence(torch.IntTensor)
+        a = rnn_utils.pack_padded_sequence(padded, lengths).cpu()
+
+        self.assertIs(a, a.to('cpu'))
+        self.assertIs(a, a.to('cpu', dtype=torch.int32))
+        self.assertEqual(a.long(), a.to(torch.int64))
+
+        if torch.cuda.is_available():
+            for cuda in ['cuda', 'cuda:0' if torch.cuda.device_count() == 1 else 'cuda:1']:
+                b = a.cuda(device=cuda)
+                self.assertIs(b, b.to(cuda))
+                self.assertEqual(a, b.to('cpu'))
+                self.assertEqual(b, a.to(cuda))
+                self.assertEqual(a, b.to('cpu', dtype=torch.int32))
+                self.assertIs(b, b.to(dtype=torch.int32))
+                self.assertEqual(b.long(), b.to(dtype=torch.int64))
+
 
 def default_tensor_type(type):
     type_str = torch.typename(type)
@@ -1324,6 +1342,39 @@ class TestNN(NNTestCase):
         m = pickle.loads(pickle.dumps(m))
         self.assertIsInstance(m, nn.Linear)
 
+    def test_spectral_norm(self):
+        input = torch.randn(3, 5)
+        m = nn.Linear(5, 7)
+        m = torch.nn.utils.spectral_norm(m)
+
+        self.assertEqual(m.weight_u.size(), torch.Size([m.weight.size(0)]))
+        self.assertTrue(hasattr(m, 'weight_org'))
+
+        m = torch.nn.utils.remove_spectral_norm(m)
+        self.assertFalse(hasattr(m, 'weight_org'))
+        self.assertFalse(hasattr(m, 'weight_u'))
+
+    def test_spectral_norm_forward(self):
+        input = torch.randn(3, 5)
+        m = nn.Linear(5, 7)
+        m = torch.nn.utils.spectral_norm(m)
+        # naive forward
+        _weight, _bias, _u = m.weight_org, m.bias, m.weight_u
+        _weight_mat = _weight.view(_weight.size(0), -1)
+        _v = torch.mv(_weight_mat.t(), _u)
+        _v = F.normalize(_v, dim=0, eps=1e-12)
+        _u = torch.mv(_weight_mat, _v)
+        _u = F.normalize(_u, dim=0, eps=1e-12)
+        _weight.data /= torch.dot(_u, torch.matmul(_weight_mat, _v))
+        out_hat = torch.nn.functional.linear(input, _weight, _bias)
+        expect_out = m(input)
+        self.assertAlmostEqual(expect_out, out_hat)
+
+    def test_spectral_norm_pickle(self):
+        m = torch.nn.utils.spectral_norm(nn.Linear(5, 7))
+        m = pickle.loads(pickle.dumps(m))
+        self.assertIsInstance(m, nn.Linear)
+
     def test_embedding_sparse_basic(self):
         embedding = nn.Embedding(10, 20, sparse=True)
         input = Variable(torch.LongTensor([[0, 2, 4, 5], [4, 3, 0, 9]]))
@@ -1492,7 +1543,7 @@ class TestNN(NNTestCase):
                  [0, 0],
                  [1, 2],
                  [3, 4]], device=device, dtype=dtype)
-        else:
+        elif mode == 'mean':
             expected_output = torch.tensor(
                 [[13. / 3, 16. / 3],
                  [13. / 3, 16. / 3]], device=device, dtype=dtype)
@@ -1502,6 +1553,16 @@ class TestNN(NNTestCase):
                  [0., 0.],
                  [1. / 3, 2. / 3],
                  [3. / 3, 4. / 3]], device=device, dtype=dtype)
+        elif mode == 'max':
+            expected_output = torch.tensor(
+                [[7, 8],
+                 [9, 10]], device=device, dtype=dtype)
+            expected_grad_weight = torch.tensor(
+                [[0, 0],
+                 [0, 0],
+                 [0, 0],
+                 [1, 2],
+                 [3, 4]], device=device, dtype=dtype)
 
         output = es(input, offsets)
         output.backward(grad_output)
@@ -1536,8 +1597,10 @@ class TestNN(NNTestCase):
             output = es(input.view(-1), offsets)
             if mode == 'sum':
                 ref_output = e(input).sum(1)
-            else:
+            elif mode == 'mean':
                 ref_output = e(input).mean(1)
+            elif mode == 'max':
+                ref_output = e(input).max(1)[0]
 
             self.assertEqual(output, ref_output, dtype2prec[dtype])
 
@@ -1546,7 +1609,10 @@ class TestNN(NNTestCase):
             es_weight_grad = es.weight.grad.data
             if sparse:
                 es_weight_grad = es.weight.grad.data.to_dense()
-            self.assertEqual(es_weight_grad, e.weight.grad, dtype2prec[dtype])
+
+            # We have more floating point error here because we are dealing with larger numbers
+            needed_prec = dtype2prec[dtype] * 2
+            self.assertEqual(es_weight_grad, e.weight.grad, needed_prec)
 
         N, D, B, L = random.randint(1, 100), random.randint(1, 100), random.randint(1, 50), random.randint(1, 50)
         _test_vs_Embedding(N, D, B, L)
@@ -1614,6 +1680,8 @@ class TestNN(NNTestCase):
     def test_embedding_bag(self):
         self._test_EmbeddingBag(False, 'sum', False)
         self._test_EmbeddingBag(False, 'mean', False)
+        self._test_EmbeddingBag(False, 'max', False)
+
         self._test_EmbeddingBag(False, 'sum', True)
         self._test_EmbeddingBag(False, 'mean', True)
 
@@ -1622,6 +1690,7 @@ class TestNN(NNTestCase):
     def test_embedding_bag_cuda(self, dtype=torch.float):
         self._test_EmbeddingBag(True, 'sum', False, dtype)
         self._test_EmbeddingBag(True, 'mean', False, dtype)
+        self._test_EmbeddingBag(True, 'max', False, dtype)
         if dtype != torch.half:
             # torch.cuda.sparse.HalfTensor is not enabled.
             self._test_EmbeddingBag(True, 'sum', True, dtype)
@@ -5176,7 +5245,7 @@ class TestNNInit(TestCase):
 
                 for col_idx in range(input_tensor.size(1)):
                     column = input_tensor[:, col_idx]
-                    assert column[column == 0].nelement() >= math.ceil(sparsity * cols)
+                    assert column[column == 0].nelement() >= math.ceil(sparsity * rows)
 
                 assert self._is_normal(input_tensor[input_tensor != 0], 0, std)
 
