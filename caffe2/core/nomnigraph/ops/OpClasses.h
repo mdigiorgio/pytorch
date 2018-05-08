@@ -896,16 +896,3 @@ class Int8MaxPoolRelu : public NeuralNetOperator {
   
 };
 
-class CopyFromCL : public NeuralNetOperator {
- public:
-  CopyFromCL() :
-      NeuralNetOperator(NNKind::CopyFromCL) {}
-  
-  ~CopyFromCL() {}
-
-  NOMNIGRAPH_DEFINE_NN_RTTI(CopyFromCL);
-
- private:
-  
-};
-

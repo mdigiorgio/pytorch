@@ -74,3 +74,5 @@ Int8ConvRelu : ConvRelu
 Int8SumRelu : SumRelu
 Int8AveragePoolRelu : AveragePoolRelu
 Int8MaxPoolRelu : MaxPoolRelu
+
+CopyFromCL

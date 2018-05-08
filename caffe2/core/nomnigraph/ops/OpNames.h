@@ -78,5 +78,3 @@ case NNKind::Int8AveragePoolRelu:
     return "Int8AveragePoolRelu";
 case NNKind::Int8MaxPoolRelu:
     return "Int8MaxPoolRelu";
-case NNKind::CopyFromCL:
-    return "CopyFromCL";

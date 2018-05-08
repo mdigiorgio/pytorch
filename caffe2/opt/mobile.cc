@@ -159,5 +159,52 @@ caffe2::NetDef fuseNNPACKConvRelu(caffe2::NetDef net) {
   return convertToCaffe2Proto(nn);
 }
 
+caffe2::NetDef tryConvertToACLOpenCL(caffe2::NetDef net, bool runFusion, std::unordered_set<std::string> cpuOps) {
+  auto nn = convertToNNModule(net);
+  for (auto node: nn.dataFlow.getMutableNodes()) {
+    auto* node_data = node->data().get();
+
+    // skip blobs
+    if (!isa<nom::repr::NeuralNetOperator>(node_data)) {
+      continue;
+    }
+
+    auto nn_op = dyn_cast<nom::repr::NeuralNetOperator>(node_data);
+    if (cpuOps.count(nn_op->getName()) > 0) {
+      // CPU Op
+      std::vector<repr::NNGraph::NodeRef> copy_from_cl;
+      auto inputs = repr::nn::getInputs(node);
+      for (auto i = 0; i < inputs.size(); ++i) {
+        // if the blob is produced by a OpenCL Op, we need to insert CopyFromCL Op
+        if (repr::nn::hasProducer(inputs[i])) {
+          auto producer_node = repr::nn::getProducer(inputs[i]);
+          // if it is produced by OpenCL Op
+          auto producer_data = producer_node->data().get();
+          auto producer_op = dyn_cast<nom::repr::NeuralNetOperator>(producer_data);
+          if (cpuOps.count(producer_op->getName()) == 0) {
+            copy_from_cl.push_back(inputs[i]);
+          }
+        }
+      }
+      if (copy_from_cl.size() > 0) {
+        repr::nn::insertOp<repr::CopyFromCL>(copy_from_cl[0], node);
+        for (auto i = 0; i < copy_from_cl.size(); ++i) {
+          repr::nn::insertOp<repr::CopyFromCL>(copy_from_cl[i], node);
+        }
+      }
+    } else {
+      // OpenCL Op
+      auto inputs = repr::nn::getInputs(node);
+      for (auto i = 0; i < inputs.size(); ++i) {
+        nn.dataFlow.replaceNode(inputs[i], make_unique<repr::Tensor>(inputs[i]->getName() + "_M"));
+      }
+      auto outputs = repr::nn::getOutputs(node);
+      for (auto i = 0; i < outputs.size(); ++i) {
+        nn.dataFlow.replaceNode(outputs[i], make_unique<repr::Tensor>(outputs[i]->getName() + "_M"));
+      }
+    }
+  }
+}
+
 } // namespace opt
 } // namespace caffe2
