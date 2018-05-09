@@ -24,6 +24,8 @@ case NNKind::Send:
     return "Send";
 case NNKind::Receive:
     return "Receive";
+case NNKind::BatchNormalization:
+    return "BatchNormalization";
 case NNKind::FC:
     return "FC";
 case NNKind::GivenTensorFill:

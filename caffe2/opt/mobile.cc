@@ -9,9 +9,8 @@ namespace opt {
 
 using namespace nom;
 
-caffe2::NetDef addNNPACK(caffe2::NetDef net, bool low_memory) {
-  auto nn = convertToNNModule(net);
-  for (auto node : nn.dataFlow.getMutableNodes()) {
+void addNNPACK(repr::NNModule* nn, bool low_memory) {
+  for (auto node : nn->dataFlow.getMutableNodes()) {
     auto* nodeData = node->data().get(); // Let graph retain ownership.
 
     // Skip blobs.
@@ -77,7 +76,6 @@ caffe2::NetDef addNNPACK(caffe2::NetDef net, bool low_memory) {
       precompute_argument->set_s("PRECOMPUTE");
     }
   }
-  return convertToCaffe2Proto(nn, net);
 }
 
 namespace {
@@ -105,8 +103,7 @@ inline bool isNNPACKConvReluEfficient(
 
 } // namespace
 
-caffe2::NetDef fuseNNPACKConvRelu(caffe2::NetDef net) {
-  auto nn = convertToNNModule(net);
+void fuseNNPACKConvRelu(repr::NNModule* nn) {
   auto should_fuse = [](const repr::Conv& conv) {
     const auto annotation = conv.getAnnotation();
     if (!annotation || !isa<Caffe2Annotation>(annotation)) {
@@ -142,9 +139,7 @@ caffe2::NetDef fuseNNPACKConvRelu(caffe2::NetDef net) {
     arg->set_s("Relu");
   };
 
-  fuseConvRelu(&nn, should_fuse, postprocess);
-
-  return convertToCaffe2Proto(nn, net);
+  fuseConvRelu(nn, should_fuse, postprocess);
 }
 
 void runOpenCLFusion(repr::NNModule* nn) {

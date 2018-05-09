@@ -17,6 +17,8 @@
 #ifndef CAFFE2_OPT_FUSION_H_
 #define CAFFE2_OPT_FUSION_H_
 
+#include "caffe2/core/common.h"
+#include "caffe2/core/workspace.h"
 #include "caffe2/proto/caffe2.pb.h"
 #include "nomnigraph/Representations/NeuralNet.h"
 
@@ -32,6 +34,8 @@ bool fuseAveragePoolRelu(nom::repr::NNModule* nn);
 bool fuseMaxPoolRelu(nom::repr::NNModule* nn);
 
 bool fuseSumRelu(nom::repr::NNModule* nn);
+
+void fuseConvBN(nom::repr::NNModule* nn, caffe2::Workspace* ws);
 
 } // namespace opt
 } // namespace caffe2
