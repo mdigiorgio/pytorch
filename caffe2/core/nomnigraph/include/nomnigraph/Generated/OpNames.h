@@ -4,6 +4,8 @@ case NNKind::Conv:
     return "Conv";
 case NNKind::ConvRelu:
     return "ConvRelu";
+case NNKind::ConvSigmoid:
+    return "ConvSigmoid";
 case NNKind::ConvTranspose:
     return "ConvTranspose";
 case NNKind::AveragePool:
@@ -80,3 +82,5 @@ case NNKind::Int8MaxPoolRelu:
     return "Int8MaxPoolRelu";
 case NNKind::CopyFromCL:
     return "CopyFromCL";
+case NNKind::Sigmoid:
+    return "Sigmoid";

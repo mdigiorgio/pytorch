@@ -20,6 +20,9 @@ Conv
 ConvRelu : Conv
 - CONV_ATTRS
 
+ConvSigmoid : Conv
+- CONV_ATTRS
+
 ConvTranspose
 - CONV_ATTRS
 
@@ -76,3 +79,4 @@ Int8AveragePoolRelu : AveragePoolRelu
 Int8MaxPoolRelu : MaxPoolRelu
 
 CopyFromCL
+Sigmoid

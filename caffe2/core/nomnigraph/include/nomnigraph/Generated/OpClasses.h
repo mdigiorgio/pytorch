@@ -151,6 +151,80 @@ class ConvRelu : public NeuralNetOperator {
   vector<int> Dilations;
 };
 
+class ConvSigmoid : public NeuralNetOperator {
+ public:
+  ConvSigmoid(vector<int> kernelShape,
+    vector<int> pads = {0, 0},
+    vector<int> strides = {1, 1},
+    int group = 1,
+    vector<int> dilations = {1, 1}) :
+      NeuralNetOperator(NNKind::ConvSigmoid),
+      KernelShape(kernelShape),
+      Pads(pads),
+      Strides(strides),
+      Group(group),
+      Dilations(dilations) {}
+  
+  ConvSigmoid(const Conv& conv) :
+      NeuralNetOperator(NNKind::ConvSigmoid),
+      KernelShape(conv.getKernelShape()),
+      Pads(conv.getPads()),
+      Strides(conv.getStrides()),
+      Group(conv.getGroup()),
+      Dilations(conv.getDilations()) {}
+
+  ~ConvSigmoid() {}
+
+  NOMNIGRAPH_DEFINE_NN_RTTI(ConvSigmoid);
+
+  vector<int> getKernelShape() const {
+    return KernelShape;
+  }
+
+  vector<int> getPads() const {
+    return Pads;
+  }
+
+  vector<int> getStrides() const {
+    return Strides;
+  }
+
+  int getGroup() const {
+    return Group;
+  }
+
+  vector<int> getDilations() const {
+    return Dilations;
+  }
+
+  void setKernelShape(vector<int> kernelShape) {
+    KernelShape = kernelShape;
+  }
+
+  void setPads(vector<int> pads) {
+    Pads = pads;
+  }
+
+  void setStrides(vector<int> strides) {
+    Strides = strides;
+  }
+
+  void setGroup(int group) {
+    Group = group;
+  }
+
+  void setDilations(vector<int> dilations) {
+    Dilations = dilations;
+  }
+
+ private:
+  vector<int> KernelShape;
+  vector<int> Pads;
+  vector<int> Strides;
+  int Group;
+  vector<int> Dilations;
+};
+
 class ConvTranspose : public NeuralNetOperator {
  public:
   ConvTranspose(vector<int> kernelShape,
@@ -904,6 +978,19 @@ class CopyFromCL : public NeuralNetOperator {
   ~CopyFromCL() {}
 
   NOMNIGRAPH_DEFINE_NN_RTTI(CopyFromCL);
+
+ private:
+  
+};
+
+class Sigmoid : public NeuralNetOperator {
+ public:
+  Sigmoid() :
+      NeuralNetOperator(NNKind::Sigmoid) {}
+  
+  ~Sigmoid() {}
+
+  NOMNIGRAPH_DEFINE_NN_RTTI(Sigmoid);
 
  private:
   

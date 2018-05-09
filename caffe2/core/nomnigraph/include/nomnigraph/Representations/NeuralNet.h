@@ -354,7 +354,7 @@ std::vector<std::pair<T*, typename G::NodeRef>> dataIterator(G& g) {
 }
 
 template <typename T, typename... Args>
-void insertOp(
+NNGraph::NodeRef insertOp(
     NNGraph& g,
     NNGraph::NodeRef a,
     NNGraph::NodeRef b,
@@ -367,7 +367,7 @@ void insertOp(
     g.createEdge(a, newNode);
     g.createEdge(newNode, newData);
     g.createEdge(newData, b);
-    return;
+    return newNode;
   }
   if (is<NeuralNetOperator>(a) && is<NeuralNetData>(b)) {
     auto newNode = g.createNode(util::make_unique<T>(args...));
@@ -377,7 +377,7 @@ void insertOp(
     g.createEdge(a, newData);
     g.createEdge(newData, newNode);
     g.createEdge(newNode, b);
-    return;
+    return newNode;
   }
 
   assert(0 && "insertOp takes (DFG, Tensor, Op) or (DFG, Op, Tensor)");

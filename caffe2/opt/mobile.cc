@@ -2,6 +2,7 @@
 #include "caffe2/core/logging.h"
 #include "caffe2/opt/converter.h"
 #include "caffe2/opt/fuse_conv_relu.h"
+#include "caffe2/opt/fusion.h"
 
 namespace caffe2 {
 namespace opt {
@@ -146,8 +147,16 @@ caffe2::NetDef fuseNNPACKConvRelu(caffe2::NetDef net) {
   return convertToCaffe2Proto(nn, net);
 }
 
+void runOpenCLFusion(repr::NNModule* nn) {
+  fuseConvRelu(nn);
+  fuseConvSigmoid(nn);
+}
+
 caffe2::NetDef tryConvertToACLOpenCL(caffe2::NetDef net, bool runFusion, std::unordered_set<std::string> cpuOps) {
   auto nn = convertToNNModule(net);
+  if (runFusion) {
+    runOpenCLFusion(&nn);
+  }
   for (auto node: nn.dataFlow.getMutableNodes()) {
     auto* node_data = node->data().get();
 
@@ -174,23 +183,29 @@ caffe2::NetDef tryConvertToACLOpenCL(caffe2::NetDef net, bool runFusion, std::un
         }
       }
       if (copy_from_cl.size() > 0) {
-        repr::nn::insertOp<repr::CopyFromCL>(copy_from_cl[0], node);
-        for (auto i = 0; i < copy_from_cl.size(); ++i) {
-          repr::nn::insertOp<repr::CopyFromCL>(copy_from_cl[i], node);
+        auto copy_node = repr::nn::insertOp<repr::CopyFromCL>(nn.dataFlow, copy_from_cl[0], node);
+        for (auto i = 1; i < copy_from_cl.size(); ++i) {
+          auto new_node = repr::nn::insertOp<repr::CopyFromCL>(nn.dataFlow, copy_from_cl[i], node);
+          nn.dataFlow.replaceNode(new_node, copy_node);
         }
       }
     } else {
       // OpenCL Op
       auto inputs = repr::nn::getInputs(node);
       for (auto i = 0; i < inputs.size(); ++i) {
-        nn.dataFlow.replaceNode(inputs[i], make_unique<repr::Tensor>(inputs[i]->getName() + "_M"));
+        auto new_node = nn.dataFlow.createNode(make_unique<repr::Tensor>(repr::nn::get<repr::NeuralNetData>(inputs[i])->getName() + "_"));
+        nn.dataFlow.replaceNode(inputs[i], new_node);
       }
       auto outputs = repr::nn::getOutputs(node);
       for (auto i = 0; i < outputs.size(); ++i) {
-        nn.dataFlow.replaceNode(outputs[i], make_unique<repr::Tensor>(outputs[i]->getName() + "_M"));
+        if (repr::nn::hasConsumer(outputs[i])) {
+          auto new_node = nn.dataFlow.createNode(make_unique<repr::Tensor>(repr::nn::get<repr::NeuralNetData>(outputs[i])->getName() + "_"));
+          nn.dataFlow.replaceNode(outputs[i], new_node);
+        }
       }
     }
   }
+  return convertToCaffe2Proto(nn, net);
 }
 
 } // namespace opt
