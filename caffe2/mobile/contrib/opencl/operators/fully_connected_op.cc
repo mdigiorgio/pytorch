@@ -61,7 +61,7 @@ bool CLFullyConnectedOp<T>::RunOnDevice() {
     X_->lazy_allocate(Xblob, second_run_, true);
     bool need_allocation = Y->Resize(output_dims);
     fc_layer_.configure(X_->get_underlying(), W_->get_underlying(),
-                     B_->get_underlying(), Y->get_underlying(), true, false);
+                     B_->get_underlying(), Y->get_underlying(), true, false, true);
     if (need_allocation) {
       Y->allocate();
     }

@@ -160,11 +160,11 @@ TEST(OPENCLOperatorTest, ConvBenchmark) {
 
 TEST(OPENCLOperatorTest, GroupedConv) {
 
- Workspace ws;
-
  for (auto channel_in: std::vector<int>({16, 24, 32, 48})) {
    for (auto channel_out: std::vector<int>({16, 24, 32, 48})) {
      for (auto groups: std::vector<int>({4, 8})) {
+       Workspace ws;
+
        auto spatial = 16; // --> 2x2 w no padding, all values 9
        auto kern = 3;
        PopulateCPUBlob(&ws, true, "cpu_X", {1, channel_in, spatial, spatial}, 1337);
@@ -209,9 +209,9 @@ TEST(OPENCLOperatorTest, GroupedConv) {
 
 TEST(OPENCLOperatorTest, DepthwiseConv) {
 
- Workspace ws;
  auto channel_in = 16;
  for (auto channel_in: std::vector<int>({3, 9, 16, 48, 123})) {
+   Workspace ws;
    auto channel_out = channel_in;
    auto groups = channel_in;
    auto spatial = 16; // --> 2x2 w no padding, all values 9
