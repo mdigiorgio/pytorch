@@ -1,6 +1,9 @@
 #include <torch/nn/modules/linear.h>
 
 namespace torch { namespace nn {
+
+Linear::Linear(uint32_t nin, uint32_t nout) : nin(nin), nout(nout) {}
+
 variable_list Linear::forward(variable_list input) {
   auto x = input[0];
   if (x.ndimension() == 2 && !no_bias_) {
@@ -24,11 +27,10 @@ void Linear::reset_parameters() {
 }
 
 void Linear::initialize_parameters() {
-  weight = this->add(
-      Var(DefaultTensor(at::kFloat).tensor({nout, nin}), true), "weight");
+  weight =
+      this->add(Var(at::CPU(at::kFloat).empty({nout, nin}), true), "weight");
   if (!no_bias_) {
-    bias =
-        this->add(Var(DefaultTensor(at::kFloat).tensor({nout}), true), "bias");
+    bias = this->add(Var(at::CPU(at::kFloat).empty(nout), true), "bias");
   }
 }
 }} // namespace torch::nn

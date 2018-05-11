@@ -4,6 +4,8 @@
 
 #include "torch/detail.h"
 
+#include <ATen/optional.h>
+
 #include <map>
 #include <memory>
 #include <string>
@@ -13,7 +15,18 @@ namespace torch { namespace nn {
 
 class Module {
  public:
+  /// Tells the base `Module` about the name of the submodule.
+  explicit Module(std::string name);
+
+  /// Constructs the base module without immediate knowledge of the submodule's
+  /// name. The name of the submodule is inferred via RTTI the first time
+  /// `.name()` is invoked.
+  Module() = default;
+
   virtual ~Module() = default;
+
+  /// Returns the name of the `Module`.
+  const std::string& name() const noexcept;
 
   // Only construct parameters in initialize_parameters, and
   // containers in initialize_containers. Most of the time, the containers are
@@ -24,22 +37,40 @@ class Module {
   virtual void reset_parameters(){};
 
   virtual variable_list forward(variable_list) = 0;
-  virtual std::unique_ptr<Module> clone() const = 0;
+  virtual std::unique_ptr<Module> clone() const;
 
   std::map<std::string, Variable> parameters() const;
   Variable& param(std::string const&);
 
-  virtual void cuda();
-  virtual void cpu();
-  void train();
-  void eval();
+  /// Enables training mode.
+  virtual void train();
 
-  at::Type& DefaultTensor(at::ScalarType s);
+  /// Disables training mode.
+  virtual void eval();
+
+  /// True if the module is in training mode.
+  virtual bool is_training() const noexcept;
+
+  /// Recursively moves all parameters to CPU memory (in place).
+  virtual void cpu();
+
+  /// Recursively moves all parameters to CUDA memory (in place).
+  virtual void cuda();
+
+  /// Recursively casts all parameters to the given type.
+  virtual void to(at::Type& type);
+
+  /// Recursively casts all parameters to the given scalar type.
+  virtual void to(at::ScalarType scalar_type);
+
+  /// Recursively moves all parameters to the given backend.
+  virtual void to(at::Backend backend);
+
+  /// Recursively zeros out the `grad` values of all parameters.
+  virtual void zero_grad();
 
   std::unordered_map<std::string, std::shared_ptr<nn::Module>> children_;
-  std::unordered_map<std::string, Variable> params_;
-  bool cuda_ = false;
-  bool train_ = true;
+  std::unordered_map<std::string, Variable> parameters_;
 
   template <class Archive>
   void save(Archive& ar) const {
@@ -69,6 +100,13 @@ class Module {
       std::string const&);
   // Be careful when registering Tensors that are not variables
   Variable& add(Variable, std::string const&);
+
+ private:
+  /// The module's name (e.g. "LSTM").
+  mutable at::optional<std::string> name_;
+
+  /// Whether the module is in training mode.
+  bool is_training_{true};
 };
 
 /// The `clone()` method in the base `Module` class does not have knowledge of
@@ -81,23 +119,18 @@ class Module {
 template <typename Derived>
 class CloneableModule : public Module {
  public:
-  // explicit CloneableModule(const char* name) : Module(name) {}
+  using Module::Module;
 
   std::unique_ptr<Module> clone() const override {
     auto ptr = std::unique_ptr<Module>(
         new Derived(*static_cast<const Derived*>(this)));
     ptr->children_.clear();
-    ptr->params_.clear();
+    ptr->parameters_.clear();
     ptr->initialize_containers();
     ptr->initialize_parameters();
     auto newParams = ptr->parameters();
     for (auto& param : parameters()) {
       newParams[param.first].data().copy_(param.second.data());
-    }
-    if (cuda_) {
-      ptr->cuda();
-    } else {
-      ptr->cpu();
     }
     return ptr;
   }

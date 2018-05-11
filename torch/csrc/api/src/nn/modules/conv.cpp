@@ -4,6 +4,17 @@
 #include <stdexcept>
 
 namespace torch { namespace nn {
+
+Conv::Conv(uint32_t Nd, uint32_t in_chan, uint32_t out_chan)
+    : Nd_(Nd),
+      in_channels_(in_chan),
+      out_channels_(out_chan),
+      stride_(makeTup(1, 1)),
+      padding_(makeTup(0)),
+      dilation_(makeTup(1, 1)),
+      dilated_(false),
+      output_padding_(makeTup(0)) {}
+
 void Conv::initialize_parameters() {
   if (!transposed_) {
     for (auto pad : output_padding_) {
@@ -23,11 +34,9 @@ void Conv::initialize_parameters() {
     wsize.push_back(in_channels_ / groups_);
   }
   wsize.insert(wsize.end(), ks_.begin(), ks_.end());
-  weight =
-      this->add(Var(DefaultTensor(at::kFloat).tensor(wsize), true), "weight");
+  weight = this->add(Var(at::CPU(at::kFloat).empty(wsize)), "weight");
   if (!no_bias_) {
-    bias = this->add(
-        Var(DefaultTensor(at::kFloat).tensor({out_channels_}), true), "bias");
+    bias = this->add(Var(at::CPU(at::kFloat).empty(out_channels_)), "bias");
   } else {
     assert(!bias.defined());
   }

@@ -1,12 +1,48 @@
 #include <torch/nn/module.h>
 
+#include <torch/csrc/autograd/generated/VariableType.h>
+
+#include <ATen/Error.h>
+
 #include <algorithm>
+#include <cassert>
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <typeinfo>
 #include <unordered_map>
 
 namespace torch { namespace nn {
+
+Module::Module(std::string name) : name_(std::move(name)) {}
+
+const std::string& Module::name() const noexcept {
+  // If the name optional is empty at this point, we grab the name of the
+  // dynamic type via RTTI. Note that we cannot do this in the constructor,
+  // because in the constructor of a base class `this` always refers to the base
+  // type. Inheritance effectively does not work in constructors. Also this note
+  // from http://en.cppreference.com/w/cpp/language/typeid:
+  // If typeid is used on an object under construction or destruction (in a
+  // destructor or in a constructor, including constructor's initializer list
+  // or default member initializers), then the std::type_info object referred
+  // to by this typeid represents the class that is being constructed or
+  // destroyed even if it is not the most-derived class.
+  if (!name_.has_value()) {
+    name_ = at::demangle(typeid(*this).name());
+  }
+  return *name_;
+}
+
+std::unique_ptr<Module> Module::clone() const {
+  AT_ERROR(
+      "clone() has not been implemented for ",
+      "_____________name_______________",
+      ". Use the copy constructor if you don't require polymorphic cloning. "
+      "Otherwise, subclass torch::nn::CloneableModule<",
+      "_____________name_______________",
+      "> instead of torch::nn::Module to inherit the ability to clone.");
+}
+
 std::map<std::string, Variable> Module::parameters() const {
   std::map<std::string, Variable> ret;
   for (auto pair : children_) {
@@ -16,7 +52,7 @@ std::map<std::string, Variable> Module::parameters() const {
       ret[name + "." + p.first] = p.second;
     }
   }
-  for (auto pair : params_) {
+  for (auto pair : parameters_) {
     ret[pair.first] = pair.second;
   }
   return ret;
@@ -42,54 +78,89 @@ Variable& Module::param(std::string const& name) {
   }
 
   auto param_name = name.substr(begin);
-  auto it = container->params_.find(param_name);
-  if (it == params_.end()) {
+  auto it = container->parameters_.find(param_name);
+  if (it == parameters_.end()) {
     throw std::runtime_error("No such param: " + param_name);
   }
   return it->second;
-}
-
-void Module::cuda() {
-  for (auto& pair : children_) {
-    pair.second->cuda();
-  }
-  cuda_ = true;
-  auto copied = params_;
-  params_.clear();
-  initialize_parameters();
-  for (auto pair : params_) {
-    pair.second.data().copy_(copied[pair.first].data());
-  }
-}
-
-void Module::cpu() {
-  for (auto& pair : children_) {
-    pair.second->cpu();
-  }
-  cuda_ = false;
-  auto copied = params_;
-  params_.clear();
-  initialize_parameters();
-  for (auto pair : params_) {
-    pair.second.data().copy_(copied[pair.first].data());
-  }
 }
 
 void Module::train() {
   for (auto& pair : children_) {
     pair.second->train();
   }
-  train_ = true;
+  is_training_ = true;
 }
 
 void Module::eval() {
   for (auto& pair : children_) {
     pair.second->eval();
   }
-  train_ = false;
+  is_training_ = false;
 }
 
-std::shared_ptr<nn::Module> Module::add(std::shared_ptr<nn::Module> m, std::string const& name) {
+void Module::cuda() {
+  to(at::kCUDA);
+}
+
+void Module::cpu() {
+  to(at::kCPU);
+}
+
+void Module::to(at::Type& type) {
+  for (auto& child : children_) {
+    child.second->to(type);
+  }
+  for (auto& pair : parameters_) {
+    auto& parameter = pair.second;
+    at::detail::set_data(parameter, parameter.data().toType(type));
+    assert(parameter.data().type() == type);
+    assert(&parameter.type() == autograd::VariableType::getType(type));
+  }
+}
+
+void Module::to(at::ScalarType scalar_type) {
+  for (auto& child : children_) {
+    child.second->to(scalar_type);
+  }
+  for (auto& pair : parameters_) {
+    auto& parameter = pair.second;
+    auto& new_type = parameter.data().type().toScalarType(scalar_type);
+    at::detail::set_data(parameter, parameter.data().toType(new_type));
+    assert(parameter.data().type().scalarType() == scalar_type);
+    assert(parameter.type().scalarType() == scalar_type);
+  }
+}
+
+void Module::to(at::Backend backend) {
+  for (auto& child : children_) {
+    child.second->to(backend);
+  }
+  for (auto& pair : parameters_) {
+    auto& parameter = pair.second;
+    auto& new_type = parameter.data().type().toBackend(backend);
+    at::detail::set_data(parameter, parameter.data().toType(new_type));
+    assert(parameter.data().type().backend() == backend);
+    assert(parameter.type().backend() == backend);
+  }
+}
+
+bool Module::is_training() const noexcept {
+  return is_training_;
+}
+
+void Module::zero_grad() {
+  for (auto& child : children_) {
+    child.second->zero_grad();
+  }
+  for (auto& pair : parameters_) {
+    pair.second.grad().zero_();
+  }
+}
+
+std::shared_ptr<nn::Module> Module::add(
+    std::shared_ptr<nn::Module> m,
+    std::string const& name) {
   if (this->children_.find(name) != this->children_.end()) {
     throw std::runtime_error("Trying to add container that already exists");
   }
@@ -103,7 +174,7 @@ std::shared_ptr<nn::Module> Module::add(std::shared_ptr<nn::Module> m, std::stri
 }
 
 Variable& Module::add(Variable v, std::string const& name) {
-  if (this->params_.find(name) != this->params_.end()) {
+  if (this->parameters_.find(name) != this->parameters_.end()) {
     throw std::runtime_error("Trying to add parameter that already exists");
   }
   if (std::find(name.begin(), name.end(), '.') != name.end()) {
@@ -111,15 +182,7 @@ Variable& Module::add(Variable v, std::string const& name) {
     // them not findable with parameters().
     throw std::runtime_error("Trying to add parameter with a '.' in its name");
   }
-  this->params_[name] = v;
-  return this->params_[name];
+  this->parameters_[name] = v;
+  return this->parameters_[name];
 }
-
-at::Type& Module::DefaultTensor(at::ScalarType s) {
-  if (cuda_)
-    return at::CUDA(s);
-  else
-    return at::CPU(s);
-}
-
 }} // namespace torch::nn

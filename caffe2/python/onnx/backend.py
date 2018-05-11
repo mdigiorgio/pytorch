@@ -348,8 +348,7 @@ class Caffe2Backend(Backend):
                 seq_len = pred_mh.net.Slice(input_shape, name + '/seq_len_slice', starts=[0], ends=[1])
                 dummy_sequence_lens = pred_mh.net.Tile([seq_len, batch_size], name + '/dummy_sequence_lens', axis=0)
                 pred_mh.net.Reshape(dummy_sequence_lens, [dummy_sequence_lens, cls.dummy_name()], shape=[-1])
-                seq_lens_for_reverse = dummy_sequence_lens
-
+                seq_lens_for_reverse = pred_mh.net.Cast(dummy_sequence_lens, name + '/seq_lens_for_reverse', to=core.DataType.INT32)
         reform(Bi, Br, W_, R_, name, hidden_size, init_net)
 
         if direction_offset == 1:
@@ -407,13 +406,20 @@ class Caffe2Backend(Backend):
                                  pred_model.graph.input,
                                  pred_model.graph.value_info):
             if x.name == W:
-                input_size = x.type.tensor_type.shape.dim[1].dim_value
+                input_size = x.type.tensor_type.shape.dim[2].dim_value
                 break
         else:
             raise RuntimeError("best-effort shape inference for RNN/GRU/LSTM failed")
 
         init_net = core.Net("init-net")
         pred_mh = ModelHelper()
+
+        init_net.Reshape(W, [W, cls.dummy_name()], shape=[1,-1,0])
+        init_net.Squeeze(W, W, dims=[0])
+        init_net.Reshape(R, [R, cls.dummy_name()], shape=[1,-1,0])
+        init_net.Squeeze(R, R, dims=[0])
+        init_net.Reshape(B, [B, cls.dummy_name()], shape=[1,-1])
+        init_net.Squeeze(B, B, dims=[0])
 
         if n.op_type == 'RNN':
             def reform(*args):
