@@ -142,8 +142,8 @@ void fuseNNPACKConvRelu(repr::NNModule* nn) {
 }
 
 void runOpenCLFusion(repr::NNModule* nn) {
-  fuseConvRelu(nn);
-  fuseConvSigmoid(nn);
+  //fuseConvRelu(nn);
+  //fuseConvSigmoid(nn);
 }
 
 caffe2::NetDef tryConvertToACLOpenCL(caffe2::NetDef net, bool runFusion, std::unordered_set<std::string> cpuOps) {
