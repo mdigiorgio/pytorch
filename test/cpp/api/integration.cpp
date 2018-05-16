@@ -2,6 +2,8 @@
 
 #include <torch/torch.h>
 
+#include <ATen/Error.h>
+
 using namespace torch;
 using namespace torch::nn;
 
@@ -86,7 +88,7 @@ class CartPole {
       reward = 0;
     } else {
       if (steps_beyond_done == 0) {
-        assert(false); // Can't do this
+        AT_ASSERT(false); // Can't do this
       }
     }
     step_++;
@@ -106,7 +108,7 @@ bool test_mnist(
   struct MNIST_Reader {
     FILE* fp_;
 
-    MNIST_Reader(const char* path) {
+    explicit MNIST_Reader(const char* path) {
       fp_ = fopen(path, "rb");
       if (!fp_)
         throw std::runtime_error("failed to open file");
@@ -117,17 +119,19 @@ bool test_mnist(
         fclose(fp_);
     }
 
-    int32_t read_int() {
+    uint32_t read_int() {
       uint8_t buf[4];
-      if (fread(buf, sizeof(buf), 1, fp_) != 1)
+      if (fread(buf, sizeof(buf), 1, fp_) != 1) {
         throw std::runtime_error("failed to read an integer");
-      return int32_t(buf[0] << 24 | buf[1] << 16 | buf[2] << 8 | buf[3]);
+      }
+      return buf[0] << 24u | buf[1] << 16u | buf[2] << 8u | buf[3];
     }
 
     uint8_t read_byte() {
       uint8_t i;
-      if (fread(&i, sizeof(i), 1, fp_) != 1)
+      if (fread(&i, sizeof(i), 1, fp_) != 1) {
         throw std::runtime_error("failed to read an byte");
+      }
       return i;
     }
   };
@@ -353,10 +357,12 @@ TEST_CASE("integration/mnist", "[cuda]") {
 TEST_CASE("integration/mnist/batchnorm", "[cuda]") {
   auto model = make(SimpleContainer());
   auto conv1 = model->add(make(Conv2d(1, 10, 5)), "conv1");
-  auto batchnorm2d = model->add(make(BatchNorm(10).stateful()), "batchnorm2d");
+  auto batchnorm2d = model->add(
+      make(BatchNorm(10, /*affine=*/true, /*stateful=*/true)), "batchnorm2d");
   auto conv2 = model->add(make(Conv2d(10, 20, 5)), "conv2");
   auto linear1 = model->add(make(Linear(320, 50)), "linear1");
-  auto batchnorm1 = model->add(make(BatchNorm(50).stateful()), "batchnorm1");
+  auto batchnorm1 = model->add(
+      make(BatchNorm(50, /*affine=*/true, /*stateful=*/true)), "batchnorm1");
   auto linear2 = model->add(make(Linear(50, 10)), "linear2");
 
   auto forward = [&](Variable x) {

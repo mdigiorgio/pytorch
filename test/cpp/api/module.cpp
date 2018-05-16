@@ -58,19 +58,21 @@ TEST_CASE("module/zero-grad") {
 }
 
 TEST_CASE("module/name") {
+  // CHECK instead of REQUIRE because demangling may fail.
   AGIUnit agi;
   // Call it twice just to make sure there are no bugs in the lazy
   // initialization semantics.
-  REQUIRE(agi.name() == "AGIUnit");
-  REQUIRE(agi.name() == "AGIUnit");
+  CHECK(agi.name() == "AGIUnit");
+  CHECK(agi.name() == "AGIUnit");
   SECTION("correctly demangled") {
-    REQUIRE(test::AGIUnit().name() == "test::AGIUnit");
-    REQUIRE(test::AGIUnit2().name() == "Foo");
+    CHECK(test::AGIUnit().name() == "test::AGIUnit");
+    CHECK(test::AGIUnit2().name() == "Foo");
   }
 }
 
 TEST_CASE("module/conversions", "[cuda]") {
-  auto model = make(LSTM(128, 64).nlayers(3).dropout(0.2));
+  auto model =
+      make(LSTM(/*in=*/128, /*out=*/64, /*layers=*/3, /*dropout=*/0.2));
   SECTION("starts as float on CPU") {
     for (auto& parameter : model->parameters()) {
       REQUIRE(parameter.second.type().backend() == at::kCPU);
@@ -135,5 +137,32 @@ TEST_CASE("module/clone") {
     };
     Cloneable module;
     REQUIRE_NOTHROW(module.clone());
+  }
+
+  SECTION("Cloning creates distinct parameters") {
+    struct TestModel : public CloneableModule<TestModel> {
+      TestModel() {
+        add(make(Linear(10, 3)), "l1");
+        add(make(Linear(3, 5)), "l2");
+        add(make(Linear(5, 100)), "l3");
+      }
+
+      variable_list forward(variable_list input) override {
+        return input;
+      }
+    };
+
+    auto model = make(TestModel());
+
+    auto model2 = model->clone();
+    auto m1param = model->parameters();
+    auto m2param = model2->parameters();
+    for (auto& param : m1param) {
+      REQUIRE(param.second.allclose(m2param[param.first]));
+      param.second.data().mul_(2);
+    }
+    for (auto& param : m1param) {
+      REQUIRE(!param.second.allclose(m2param[param.first]));
+    }
   }
 }

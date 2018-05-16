@@ -766,6 +766,17 @@ class TestTorch(TestCase):
     def test_dim_reduction(self):
         self._test_dim_reduction(self, lambda t: t)
 
+    @unittest.skipIf(not TEST_SCIPY, "Scipy not found")
+    def test_logsumexp(self):
+        from scipy.special import logsumexp
+        a = torch.randn(5, 4)
+        a[0, 0] = float('inf')
+        a[1, :] = float('-inf')
+        actual = a.logsumexp(1)
+        expected = logsumexp(a.numpy(), 1)
+        self.assertEqual(expected.shape, actual.shape)
+        self.assertTrue(np.allclose(expected, actual.numpy()))
+
     @unittest.skipIf(not TEST_NUMPY, "Numpy not found")
     def test_cpu_parallel(self):
         # To use parallel branches we'll need to compare on tensors
@@ -1435,6 +1446,8 @@ class TestTorch(TestCase):
         E = torch.randn(7, 9)
         F = torch.randn(2, 3, 5, 7)
         G = torch.randn(7, 11, 13)
+        H = torch.randn(4, 4)
+        I = torch.randn(3, 4, 4)
         l = torch.randn(5, 10)
         r = torch.randn(5, 20)
         w = torch.randn(30, 10, 20)
@@ -1461,14 +1474,22 @@ class TestTorch(TestCase):
             ("ijk,jk->ij", C, A),       # tensor matrix contraction with double indices
             ("ijk,ik->j", C, B),        # non contiguous
             ("ijk,ik->jk", C, B),       # non contiguous with double indices
+            # -- Diagonal
+            ("ii", H),                 # trace
+            ("ii->i", H),              # diagonal
+            # -- Ellipsis
+            ("i...->...", H),
+            ("ki,...k->i...", A.t(), B),
+            ("k...,jk", A.t(), B),
+            ("...ii->...i", I),       # batch diagonal
             # -- Other
             ("bn,anm,bm->ba", l, w, r),  # as torch.bilinear
         ]
         for test in test_list:
             actual = torch.einsum(test[0], test[1:])
             expected = np.einsum(test[0], *[t.numpy() for t in test[1:]])
-            self.assertEqual(expected.shape, actual.shape)
-            self.assertTrue(np.allclose(expected, actual.numpy()))
+            self.assertEqual(expected.shape, actual.shape, test[0])
+            self.assertTrue(np.allclose(expected, actual.numpy()), test[0])
 
             def do_einsum(*args):
                 return torch.einsum(test[0], args)
@@ -4992,7 +5013,11 @@ class TestTorch(TestCase):
 
                 # weird shape
                 [slice(None), [[0, 1],
-                               [2, 3]]]
+                               [2, 3]]],
+                # negatives
+                [[-1], [0]],
+                [[0, 2], [-1]],
+                [slice(None), [-1]],
             ]
 
             # only test dupes on gets
