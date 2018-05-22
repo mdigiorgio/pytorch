@@ -55,20 +55,26 @@ static NetDef insertInputOutputCopyOps(const NetDef& def, std::unordered_set<std
   // - a single output (first element of external_output()) is produced by the NetDef.
   // - the input is consumed by def.op(0), and this is the only consumer.
   // - the output is produced by def.op(-1).
+  LOG(ERROR) << "[C2DEBUG] In insertInputOutputCopyOps";
+  LOG(ERROR) << "[C2DEBUG] def: " << def.external_input_size();
   CAFFE_ENFORCE_GE(def.external_input_size(), 1);
-  CAFFE_ENFORCE_GE(def.external_output_size(), 1);
+  //CAFFE_ENFORCE_GE(def.external_output_size(), 1);
   auto analysis = analyzeNet(def);
+  LOG(ERROR) << "[C2DEBUG] After analyzeNet";
   // enforce a single use of the input blob.
   CAFFE_ENFORCE_GE(def.op_size(), 1);
+  LOG(ERROR) << "[C2DEBUG] 1";
 
   const auto& inputBlob = def.external_input(0);
   // Enforce that the input blob has a single usage - in the first operator.
   CAFFE_ENFORCE(analysis.inUsages[inputBlob][0] == (std::vector<size_t>{0}));
-  const auto& outputBlob = def.external_output(0);
-  const auto& outputBlobVersion = analysis.ssa.back().outVersions[outputBlob];
-  // This should hold true by definition of the SSA analysis.
-  CAFFE_ENFORCE(analysis.inUsages[outputBlob].find(outputBlobVersion) ==
-                analysis.inUsages[outputBlob].end());
+  LOG(ERROR) << "[C2DEBUG] 2";
+  // const auto& outputBlob = def.external_output(0);
+  // const auto& outputBlobVersion = analysis.ssa.back().outVersions[outputBlob];
+  // // This should hold true by definition of the SSA analysis.
+  // CAFFE_ENFORCE(analysis.inUsages[outputBlob].find(outputBlobVersion) ==
+  //               analysis.inUsages[outputBlob].end());
+  LOG(ERROR) << "[C2DEBUG] 3";
 
   NetDef mdef;
   mdef.CopyFrom(def);
@@ -76,7 +82,7 @@ static NetDef insertInputOutputCopyOps(const NetDef& def, std::unordered_set<std
 
   std::unordered_map<std::string, std::set<size_t>> cpu_blobs, gpu_blobs;
   cpu_blobs[def.external_input(0)].insert(0);
-  VLOG(2) << "[C2DEBUG] def.op_size(): " << def.op_size();
+  LOG(ERROR) << "[C2DEBUG] def.op_size(): " << def.op_size();
   for (auto i = 0; i < def.op_size(); i++) {
     const auto& currentOp = def.op(i);
     if (cpuOp.count(currentOp.type()) > 0) {
@@ -224,8 +230,11 @@ NetDef rewritePredictNetForOpenCL(const NetDef& predictNet, bool runFusion, std:
   // if (runFusion) {
   //   net = runOpenCLFusion(net, openCLOps);
   // }
+  LOG(ERROR) << "[C2DEBUG] net size before insert " << net.op().size();
+  LOG(ERROR) << "[C2DEBUG] net external " << predictNet.external_input_size();
+  LOG(ERROR) << "[C2DEBUG] net external " << net.external_input_size();
   net = insertInputOutputCopyOps(net, cpuOps);
-  VLOG(2) << "[C2DEBUG] net size " << net.op().size();
+  LOG(ERROR) << "[C2DEBUG] net size " << net.op().size();
   net.set_type("opencl");
 
   for (auto i = 0; i < net.op().size(); ++i) {
@@ -244,7 +253,7 @@ bool tryConvertToOpenCL(const NetDef& predictNet,
                         std::unordered_set<std::string> cpuOps) {
   try {
     // Throws if unsupported operators are found.
-    VLOG(2) << "[C2DEBUG] in tryConvertToOpenCL";
+    LOG(ERROR) << "[C2DEBUG] in tryConvertToOpenCL";
     *glPredictNet = rewritePredictNetForOpenCL(predictNet, runFusion, cpuOps);
     dumpDefForOpenCL(*glPredictNet);
     // Throws if unsupported parameters are found.

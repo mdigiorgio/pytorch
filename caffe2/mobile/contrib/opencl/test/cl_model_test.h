@@ -26,11 +26,17 @@ namespace caffe2 {
     CAFFE_ENFORCE(ReadProtoFromFile(predict_net_pb, &tmp_net_def));
     PopulateCPUBlob(ws.get(), true, input_name, input_dims);
     LOG(ERROR) << "[C2DEBUG] rewriting OpenCL net";
-    for (auto i = 0; i < tmp_net_def.op().size() / 2; ++i) {
+    predict_net_def.CopyFrom(tmp_net_def);
+    predict_net_def.clear_op();
+    predict_net_def.clear_external_output();
+    for (auto i = 0; i < 2; ++i) {
       auto op = predict_net_def.add_op();
       op->CopyFrom(tmp_net_def.op(i));
     }
+    auto* output_ = predict_net_def.add_external_output();
+    *output_ = predict_net_def.op()[predict_net_def.op().size() - 1].output()[0];
     tryConvertToOpenCL(predict_net_def, &predict_net_def_gpu, false, cpu_ops);
+    LOG(ERROR) << "[C2DEBUG] predict_net_def_gpu.size(): " << predict_net_def_gpu.op().size();
     // change the name of last op
     auto index = predict_net_def_gpu.op().size() - 1;
     LOG(ERROR) << "[C2DEBUG] index:" << index;
