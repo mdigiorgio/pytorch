@@ -146,22 +146,18 @@ bool CLConvOp<T, Activation>::RunOnDevice() {
                         arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(), group_, i);
       }
     } else {
+      arm_compute::ActivationLayerInfo act_info;
       string activation = Activation::act();
-      if (activation == "") {
-        conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
-                        Y->get_underlying(),
-                        arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]));
+      if (activation == "relu") {
+        act_info = arm_compute::ActivationLayerInfo(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
+      } else if (activation == "sigmoid") {
+        act_info = arm_compute::ActivationLayerInfo(arm_compute::ActivationLayerInfo::ActivationFunction::LOGISTIC);
       } else {
-        arm_compute::ActivationLayerInfo act_info;
-        if (activation == "relu") {
-          act_info = arm_compute::ActivationLayerInfo(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
-        } else if (activation == "sigmoid") {
-          act_info = arm_compute::ActivationLayerInfo(arm_compute::ActivationLayerInfo::ActivationFunction::LOGISTIC);
-        }
-        conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
-                        Y->get_underlying(),
-                        arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(), arm_compute::Size2D(1, 1), act_info);
+        act_info = arm_compute::ActivationLayerInfo();
       }
+      conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
+                      Y->get_underlying(),
+                      arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(), arm_compute::Size2D(1, 1), act_info);
     }
   } else if (second_run_) {
     LOG(ERROR) << "[C2DEBUG] second";
@@ -200,6 +196,33 @@ bool CLConvOp<T, Activation>::RunOnDevice() {
       LOG(ERROR) << "[C2DEBUG] second after conv_.run()";
     }
   } else {
+    // Configure
+    if (depthwise) {
+      depth_conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
+                            Y->get_underlying(),
+                            arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]));
+    } else if (grouped) {
+      for (int i = 0; i < group_; ++i) {
+        gconv_configure(gconv_[i].get(), X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
+                      Y->get_underlying(),
+                        arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(false, 0, 0, 0, true /* retain weights from first run */), group_, i);
+      }
+    } else {
+      arm_compute::ActivationLayerInfo act_info;
+      string activation = Activation::act();
+      if (activation == "relu") {
+        act_info = arm_compute::ActivationLayerInfo(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
+      } else if (activation == "sigmoid") {
+        act_info = arm_compute::ActivationLayerInfo(arm_compute::ActivationLayerInfo::ActivationFunction::LOGISTIC);
+      } else {
+        act_info = arm_compute::ActivationLayerInfo();
+      }
+      LOG(ERROR) << "[C2DEBUG] before conv_.configure";
+      conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
+                      Y->get_underlying(),
+                      arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(false, 0, 0, 0, true /* retain weights from first run */), arm_compute::Size2D(1, 1), act_info);
+    }
+    // Allocate
     LOG(ERROR) << "[C2DEBUG] normal run";
     X_->lazy_allocate(Xblob, second_run_, true);
     filter_->lazy_allocate(filterblob, second_run_, true);
@@ -216,24 +239,15 @@ bool CLConvOp<T, Activation>::RunOnDevice() {
       Y->allocate();
     }
     LOG(ERROR) << "[C2DEBUG] after Y->allocate()";
+    // Run
     if (depthwise) {
       LOG(ERROR) << "[C2DEBUG] Running depthwise conv";
-      depth_conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
-                            Y->get_underlying(),
-                            arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]));
       depth_conv_.run();
     } else if (grouped) {
       for (int i = 0; i < group_; ++i) {
-        gconv_configure(gconv_[i].get(), X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
-                      Y->get_underlying(),
-                        arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(false, 0, 0, 0, true /* retain weights from first run */), group_, i);
         gconv_[i]->run();
       }
     } else {
-      LOG(ERROR) << "[C2DEBUG] before conv_.configure";
-      conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
-                      Y->get_underlying(),
-                      arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), arm_compute::WeightsInfo(false, 0, 0, 0, true /* retain weights from first run */));
       LOG(ERROR) << "[C2DEBUG] before conv_.run";
       conv_.run();
       LOG(ERROR) << "[C2DEBUG] after conv_.run";

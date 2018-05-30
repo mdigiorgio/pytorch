@@ -31,7 +31,6 @@ TEST(OPENCLOperatorTest, Conv) {
     def->set_name("cpu_conv");
     ADD_CONV_ARGS;
   }
-  ws.RunNetOnce(cpu_net);
 
   NetDef gpu_net;
   gpu_net.set_type("opencl");
@@ -84,8 +83,6 @@ TEST(OPENCLOperatorTest, ConvReluConv) {
     ADD_CONV_ARGS;
   }
 
-  ws.RunNetOnce(cpu_net);
-
   NetDef gpu_net;
   gpu_net.set_type("opencl");
   {
@@ -105,7 +102,7 @@ TEST(OPENCLOperatorTest, ConvReluConv) {
 
 #undef ADD_CONV_ARGS
 
-  compareNetResult4D(ws, cpu_net, gpu_net, "ref_Y2", "gpu_Y2", tol);
+  compareNetResult4D(ws, cpu_net, gpu_net, "ref_Y2", "gpu_Y2", 4.0e-02);
 
 }
 
@@ -187,7 +184,6 @@ TEST(OPENCLOperatorTest, GroupedConv) {
          def->set_name("cpu_conv");
          ADD_CONV_ARGS;
        }
-       ws.RunNetOnce(cpu_net);
 
        NetDef gpu_net;
        gpu_net.set_type("opencl");
@@ -218,13 +214,14 @@ TEST(OPENCLOperatorTest, DepthwiseConv) {
    auto kern = 3;
 
    PopulateCPUBlob(&ws, true, "cpu_X", {1, channel_in, spatial, spatial}, 1337);
-   PopulateCPUBlob(&ws, true, "W", {channel_out, channel_in, kern, kern}, 1337);
+   PopulateCPUBlob(&ws, true, "W", {channel_out, 1, kern, kern}, 1337);
    PopulateCPUBlob(&ws, false, "b", {channel_out}, 0);
 
 #define ADD_CONV_ARGS                           \
    {                                            \
      ADD_ARG((*def), "kernel", i, kern);        \
      ADD_ARG((*def), "stride", i, 1);           \
+     ADD_ARG((*def), "group", i, groups);       \
      ADD_ARG((*def), "pad", i, 0);              \
      ADD_ARG((*def), "order", s, "NCHW");       \
    }
@@ -235,7 +232,6 @@ TEST(OPENCLOperatorTest, DepthwiseConv) {
      def->set_name("cpu_conv");
      ADD_CONV_ARGS;
    }
-   ws.RunNetOnce(cpu_net);
 
    NetDef gpu_net;
    gpu_net.set_type("opencl");
