@@ -89,6 +89,12 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
     Y->allocate();
     conv_trans_.run();
   } else {
+    // Configure
+    conv_trans_.configure(
+                    X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
+                    Y->get_underlying(),
+                    arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), 0, 0);
+    // Allocate
     X_->lazy_allocate(Xblob, second_run_, true);
     TensorCPU fakeX;
     fakeX.Resize(X_->dims());
@@ -98,10 +104,7 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
     if (need_allocation) {
       Y->allocate();
     }
-    conv_trans_.configure(
-                    X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
-                    Y->get_underlying(),
-                    arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), 0, 0);
+    // Run
     conv_trans_.run();
  }
 

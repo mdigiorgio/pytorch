@@ -91,20 +91,23 @@ bool CLConcatOp<T>::RunOnDevice() {
     Y->allocate();
     concat_layer_.run();
   } else {
+    // Configure
+    std::vector<arm_compute::ICLTensor*> inputsTensor;
+    for (int i = 0; i < inputs_.size(); ++i) {
+      inputsTensor.push_back(inputs_[i]->get_underlying());
+    }
+    concat_layer_.configure(inputsTensor, Y->get_underlying());
+    // Allocate
     for (int i = 0; i < inputs_.size(); ++i) {
       auto* X = inputs_[i].get();
       auto* Xblob = inputsBlob[i];
       X->lazy_allocate(Xblob, second_run_, true);
     }
     bool need_allocation = Y->Resize(output_dims);
-    std::vector<arm_compute::ICLTensor*> inputsTensor;
-    for (int i = 0; i < inputs_.size(); ++i) {
-      inputsTensor.push_back(inputs_[i]->get_underlying());
-    }
-    concat_layer_.configure(inputsTensor, Y->get_underlying());
     if (need_allocation) {
       Y->allocate();
     }
+    // Run
     concat_layer_.run();
   }
 
