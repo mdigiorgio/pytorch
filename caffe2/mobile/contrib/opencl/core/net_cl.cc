@@ -202,6 +202,29 @@ vector<float> CLNet::TEST_Benchmark(
       std::cout << "[C2DEBUG] Operator #" << idx << " (" << print_name << ", " << op_type
                 << ") " << time_per_op[idx] / main_runs << " ms/iter"
                 << flops_str.str() << std::endl;
+//      // Print inputs and outputs
+//      for(int i = 0; i < op->InputSize(); ++i) {
+//          auto inp_blob = op->Inputs()[i];
+//          if (inp_blob->IsType<OpenCLTensor<DataType>>()) {
+//              auto &g_ = inp_blob->Get<OpenCLTensor<DataType>>();
+//              std::cout << "[C2DEBUG] Input" << i << " " << g_.dims() << std::endl;
+//          }
+//          else {
+//              auto &g_ = inp_blob->Get<TensorCPU>();
+//              std::cout << "[C2DEBUG] Input" << i << " " << g_.dims() << std::endl;
+//          }
+//      }
+//      for(int i = 0; i < op->OutputSize(); ++i) {
+//          auto out_blob = op->Outputs()[i];
+//          if (out_blob->IsType<OpenCLTensor<DataType>>()) {
+//              auto &g_ = out_blob->Get<OpenCLTensor<DataType>>();
+//              std::cout << "[C2DEBUG] Output" << i << " " << g_.dims() << std::endl;
+//          }
+//          else {
+//              auto &g_ = out_blob->Get<TensorCPU>();
+//              std::cout << "[C2DEBUG] Output" << i << " " << g_.dims() << std::endl;
+//          }
+//      }
       ++idx;
     }
     std::cout << "[C2DEBUG] Time per operator type:" << std::endl;

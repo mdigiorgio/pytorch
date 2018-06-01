@@ -118,6 +118,20 @@ void compareNetResult4D(Workspace& ws,
         diff_num++;
       }
     }
+
+//    if(diff_num > 0.03 * t.size()) {
+//        std::cout << "CL Output" << std::endl;
+//        for (auto i = 0; i < g.size(); ++i) {
+//          auto g_elem = g.data<float>()[i];
+//          std::cout << g_elem << " ";
+//        }
+//        std::cout << "\nReference" << std::endl;
+//        for (auto i = 0; i < t.size(); ++i) {
+//          auto t_elem = t.data<float>()[i];
+//          std::cout << t_elem << " ";
+//        }
+//        std::cout << std::endl;
+//    }
   }
   EXPECT_LE(diff_num, 0.03 * t.size());
 }
