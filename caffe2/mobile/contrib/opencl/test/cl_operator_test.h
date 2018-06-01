@@ -111,7 +111,10 @@ void compareNetResult4D(Workspace& ws,
     for (auto i = 0; i < t.size(); ++i) {
       auto t_elem = t.data<float>()[i];
       auto g_elem = g.data<float>()[i];
-      if (!isnan(t_elem) && (std::abs(t_elem - g_elem) > tol + tol * std::abs(t_elem))) {
+      if (isnan(g_elem) && !isnan(t_elem)) {
+        diff_num++;
+      }
+      else if (!isnan(t_elem) && (std::abs(t_elem - g_elem) > tol + tol * std::abs(t_elem))) {
         diff_num++;
       }
     }

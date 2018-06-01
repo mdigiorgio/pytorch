@@ -48,7 +48,7 @@ bool CLFullyConnectedOp<T>::RunOnDevice() {
     Y->Resize(output_dims);
 
     fc_layer_.configure(X_->get_underlying(), W_->get_underlying(),
-                     B_->get_underlying(), Y->get_underlying(), true, false);
+                     B_->get_underlying(), Y->get_underlying(), arm_compute::FullyConnectedLayerInfo());
   } else if (second_run_) {
     X_->lazy_allocate(Xblob, second_run_, true);
     W_->lazy_allocate(Wblob, second_run_, second_run_);
@@ -60,8 +60,10 @@ bool CLFullyConnectedOp<T>::RunOnDevice() {
   } else {
     bool need_allocation = Y->Resize(output_dims);
     // Configure
+    arm_compute::FullyConnectedLayerInfo fc_info = arm_compute::FullyConnectedLayerInfo();
+    fc_info.retain_internal_weights = true;
     fc_layer_.configure(X_->get_underlying(), W_->get_underlying(),
-                     B_->get_underlying(), Y->get_underlying(), true, false, true);
+                     B_->get_underlying(), Y->get_underlying(), fc_info);
     // Allocate
     X_->lazy_allocate(Xblob, second_run_, true);
     if (need_allocation) {

@@ -196,7 +196,6 @@ public:
   }
 
   void allocate() const {
-    LOG(ERROR) << "[C2DEBUG] allocate()";
     tensor_->allocator()->allocate();
   }
 
@@ -342,12 +341,9 @@ private:
 
 template<typename T = DataType>
 void getTensorCPU(const OpenCLTensor<T>& g_, TensorCPU& g) {
-  LOG(ERROR) << " [C2DEBUG] getTensorCPU " << g_.dims();
   g.Resize(g_.dims());
   g_.map();
-  LOG(ERROR) << " [C2DEBUG] getTensorCPU after map()";
   auto tensor = g_.get_underlying();
-  LOG(ERROR) << " [C2DEBUG] getTensorCPU after get_underlying()";
   auto info = tensor->info();
   arm_compute::Window it_window;
   it_window.use_tensor_dimensions(info->tensor_shape(), /* first_dimension =*/arm_compute::Window::DimY); // Iterate through the rows (not each element)
@@ -356,7 +352,6 @@ void getTensorCPU(const OpenCLTensor<T>& g_, TensorCPU& g) {
     auto C = g_.dim32(1);
     auto H = g_.dim32(2);
     auto W = g_.dim32(3);
-    LOG(ERROR) << "[C2DEBUG] dims: " << C << " " << H << " " << W;
     arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
         std::copy_n(reinterpret_cast<T *>(it.ptr()), W, g.mutable_data<float>() + id[3] * (C * W * H) + id.z() * (W * H) + id.y() * W);
       },
@@ -379,9 +374,7 @@ void getTensorCPU(const OpenCLTensor<T>& g_, TensorCPU& g) {
     w.use_tensor_dimensions(info->tensor_shape());
     arm_compute::Iterator i(tensor, w);
     auto size = g_.dim32(0);
-    LOG(ERROR) << "[C2DEBUG] i.ptr():" << reinterpret_cast<T *>(i.ptr());
     std::copy_n(reinterpret_cast<T *>(i.ptr()), size, g.mutable_data<float>());
-    LOG(ERROR) << "After copy";
   }
   g_.unmap();
 }
