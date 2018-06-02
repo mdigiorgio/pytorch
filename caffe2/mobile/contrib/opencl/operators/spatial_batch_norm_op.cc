@@ -76,14 +76,18 @@ bool CLSpatialBNOp<T>::RunOnDevice() {
     Y->allocate();
     bn_layer_.run();
   } else {
-    X_->lazy_allocate(XBlob, second_run_, true);
-    bool need_allocation = Y->ResizeLike(*X_);
+    // Configure
     bn_layer_.configure(X_->get_underlying(), Y->get_underlying(),
                      mean_->get_underlying(), var_->get_underlying(),
                      bias_->get_underlying(), scale_->get_underlying(), epsilon_);
+    // Allocate
+    X_->lazy_allocate(XBlob, second_run_, true);
+    bool need_allocation = Y->ResizeLike(*X_);
     if (need_allocation) {
       Y->allocate();
     }
+    // Run
+    bn_layer_.run();
   }
   return true;
 }

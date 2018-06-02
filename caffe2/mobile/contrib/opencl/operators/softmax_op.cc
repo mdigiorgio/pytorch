@@ -37,12 +37,15 @@ bool CLSoftmaxOp<T>::RunOnDevice() {
     Y->allocate();
     softmax_layer_.run();
   } else {
+    // Configure
+    softmax_layer_.configure(X_->get_underlying(), Y->get_underlying());
+    // Allocate
     X_->lazy_allocate(Xblob, second_run_, true);
     bool need_allocation = Y->ResizeLike(*X_);
-    softmax_layer_.configure(X_->get_underlying(), Y->get_underlying());
     if (need_allocation) {
       Y->allocate();
     }
+    // Run
     softmax_layer_.run();
   }
 

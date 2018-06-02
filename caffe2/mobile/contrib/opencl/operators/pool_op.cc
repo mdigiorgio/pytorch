@@ -85,8 +85,7 @@ bool CLAveragePoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
     Y->allocate();
     pooling_layer_.run();
   } else {
-    X_->lazy_allocate(Xblob, second_run_, true);
-    bool need_allocation =Y->Resize(output_dims);
+    // Configure
     if (global_pooling_) {
       arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::AVG);
       pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
@@ -98,9 +97,13 @@ bool CLAveragePoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
                                          ps_info);
       pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
     }
+    // Allocate
+    X_->lazy_allocate(Xblob, second_run_, true);
+    bool need_allocation =Y->Resize(output_dims);
     if (need_allocation) {
       Y->allocate();
     }
+    // Run
     pooling_layer_.run();
   }
   return true;
@@ -148,8 +151,7 @@ template <> bool CLMaxPoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
     Y->allocate();
     pooling_layer_.run();
   } else {
-    X_->lazy_allocate(Xblob, second_run_, true);
-    bool need_allocation = Y->Resize(output_dims);
+    // Configure
     if (global_pooling_) {
       arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::MAX);
       pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
@@ -161,9 +163,13 @@ template <> bool CLMaxPoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
                                          ps_info);
       pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
     }
+    // Allocate
+    X_->lazy_allocate(Xblob, second_run_, true);
+    bool need_allocation = Y->Resize(output_dims);
     if (need_allocation) {
       Y->allocate();
     }
+    // Run
     pooling_layer_.run();
   }
 

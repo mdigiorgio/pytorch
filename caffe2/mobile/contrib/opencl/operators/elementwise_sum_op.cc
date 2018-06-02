@@ -40,13 +40,17 @@ bool CLSumOp<T>::RunOnDevice() {
     Y->allocate();
     add_layer_.run();
   } else {
+    // Configure
+    add_layer_.configure(A_->get_underlying(), B_->get_underlying(), Y->get_underlying(), arm_compute::ConvertPolicy::SATURATE);
+    // Allocate
     A_->lazy_allocate(Ablob, second_run_, true);
     B_->lazy_allocate(Bblob, second_run_, true);
     bool need_allocation = Y->ResizeLike(*A_);
-    add_layer_.configure(A_->get_underlying(), B_->get_underlying(), Y->get_underlying(), arm_compute::ConvertPolicy::SATURATE);
     if (need_allocation) {
       Y->allocate();
     }
+    // Run
+    add_layer_.run();
   }
 
   return true;

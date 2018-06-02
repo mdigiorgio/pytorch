@@ -36,18 +36,21 @@ bool CLReluOp<T>::RunOnDevice() {
     }
     relu_layer_.run();
   } else {
+    // Configure
+    relu_layer_.configure(
+        X_->get_underlying(), Y->get_underlying(),
+        arm_compute::ActivationLayerInfo(
+          arm_compute::ActivationLayerInfo::ActivationFunction::RELU));
+    // Allocate
     X_->lazy_allocate(Xblob, second_run_, true);
     bool need_allocation = false;
     if (Y->get_underlying() != X_->get_underlying()) {
       need_allocation = Y->ResizeLike(*X_, true);
     }
-    relu_layer_.configure(
-        X_->get_underlying(), Y->get_underlying(),
-        arm_compute::ActivationLayerInfo(
-          arm_compute::ActivationLayerInfo::ActivationFunction::RELU));
     if (need_allocation) {
       Y->allocate();
     }
+    // Run
     relu_layer_.run();
   }
 
@@ -86,19 +89,22 @@ bool CLSigmoidOp<T>::RunOnDevice() {
     }
     sigmoid_layer_.run();
   } else {
+    // Configure
+    sigmoid_layer_.configure(
+      X_->get_underlying(), Y->get_underlying(),
+      arm_compute::ActivationLayerInfo(
+          arm_compute::ActivationLayerInfo::ActivationFunction::LOGISTIC));
+    // Allocate
     X_->lazy_allocate(Xblob, second_run_, true);
     bool need_allocation = false;
     if (Y->get_underlying() != X_->get_underlying())
     {
       need_allocation = Y->ResizeLike(*X_, true);
     }
-    sigmoid_layer_.configure(
-      X_->get_underlying(), Y->get_underlying(),
-      arm_compute::ActivationLayerInfo(
-          arm_compute::ActivationLayerInfo::ActivationFunction::LOGISTIC));
     if (need_allocation) {
       Y->allocate();
     }
+    // Run
     sigmoid_layer_.run();
   }
 
