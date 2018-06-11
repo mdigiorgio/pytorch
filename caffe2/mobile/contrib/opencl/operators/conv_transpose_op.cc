@@ -22,6 +22,7 @@ private:
   arm_compute::CLDeconvolutionLayer conv_trans_;
   bool first_run_ = true, second_run_ = true;
   CLContext::deleted_unique_ptr<const OpenCLTensor<T>> X_, filter_, bias_;
+  OpenCLTensor<T> refilter_;
 };
 
 template <typename T>
@@ -51,6 +52,16 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
   CAFFE_ENFORCE(bias_->ndim(), 1);
   CAFFE_ENFORCE(bias_->dim32(0), output_channels);
 
+  // TODO: remove filter reshaping at some point
+  auto dims = filter_->dims();
+  dims[0] = output_channels;
+  dims[1] = input_channels;
+  refilter_.Resize(dims);
+
+  // TODO: fix padding for deconvolution
+  const unsigned int pad_x = 1;
+  const unsigned int pad_y = 1;
+
   if (first_run_) {
     first_run_ = false;
 
@@ -76,24 +87,49 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
     ;
 
     conv_trans_.configure(
-        X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
+        X_->get_underlying(), refilter_.get_underlying(), bias_->get_underlying(),
         Y->get_underlying(),
-        arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), 0, 0);
+        arm_compute::PadStrideInfo(stride_[0], stride_[1], pad_x, pad_y), 0, 0);
 
   } else if (second_run_) {
     // Always attempt to copy the CPU to GPU on input
     X_->lazy_allocate(Xblob, second_run_, true);
     filter_->lazy_allocate(filterblob, second_run_, second_run_);
+    refilter_.allocate();
     bias_->lazy_allocate(biasblob, second_run_, second_run_);
     second_run_ = false;
     Y->allocate();
+
+    // TODO: remove filter reshaping at some point
+    // Reshape filter_ from [IFM, OFM, H, W] to [OFM, IFM, H, W]
+    const int kH = kernel_h();
+    const int kW = kernel_w();
+    auto* filter_data = filter_->map();
+    auto* refilter_data = refilter_.map();
+    for (auto ic = 0; ic < input_channels; ++ic) {
+      for (auto oc = 0; oc < output_channels; ++oc) {
+        for (auto kh = 0; kh < kH; ++kh) {
+          for (auto kw = 0; kw < kW; ++kw) {
+            const auto inputIdx = ic + oc * input_channels + kh * input_channels * output_channels + kw * input_channels * output_channels * kH;
+            const auto outputIdx = oc + ic * output_channels + kh * output_channels * input_channels + kw * output_channels * input_channels * kH;
+            DCHECK_LT(inputIdx, filter_->size());
+            DCHECK_LT(outputIdx, filter_->size());
+            refilter_data[outputIdx] = filter_data[inputIdx];
+          }
+        }
+      }
+    }
+    refilter_.unmap();
+    filter_->unmap();
+
     conv_trans_.run();
   } else {
     // Configure
     conv_trans_.configure(
-                    X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
+                    X_->get_underlying(), refilter_.get_underlying(), bias_->get_underlying(),
                     Y->get_underlying(),
-                    arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), 0, 0);
+                    arm_compute::PadStrideInfo(stride_[0], stride_[1], pad_x, pad_y), 0, 0,
+                    arm_compute::WeightsInfo(false, 0, 0, 0, true /* retain weights from previous run */));
     // Allocate
     X_->lazy_allocate(Xblob, second_run_, true);
     TensorCPU fakeX;
@@ -104,6 +140,28 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
     if (need_allocation) {
       Y->allocate();
     }
+    // TODO: remove filter reshaping at some point
+    // Reshape filter_ from [IFM, OFM, H, W] to [OFM, IFM, H, W]
+    const int kH = kernel_h();
+    const int kW = kernel_w();
+    auto* filter_data = filter_->map();
+    auto* refilter_data = refilter_.map();
+    for (auto ic = 0; ic < input_channels; ++ic) {
+      for (auto oc = 0; oc < output_channels; ++oc) {
+        for (auto kh = 0; kh < kH; ++kh) {
+          for (auto kw = 0; kw < kW; ++kw) {
+            const auto inputIdx = ic + oc * input_channels + kh * input_channels * output_channels + kw * input_channels * output_channels * kH;
+            const auto outputIdx = oc + ic * output_channels + kh * output_channels * input_channels + kw * output_channels * input_channels * kH;
+            DCHECK_LT(inputIdx, filter_->size());
+            DCHECK_LT(outputIdx, filter_->size());
+            refilter_data[outputIdx] = filter_data[inputIdx];
+          }
+        }
+      }
+    }
+    refilter_.unmap();
+    filter_->unmap();
+
     // Run
     conv_trans_.run();
  }
