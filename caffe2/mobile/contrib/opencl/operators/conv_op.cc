@@ -196,6 +196,12 @@ bool CLConvOp<T, Activation>::RunOnDevice() {
       LOG(ERROR) << "[C2DEBUG] second after conv_.run()";
     }
   } else {
+    TensorCPU fakeX;
+    fakeX.Resize(X_->dims());
+    TensorCPU fakeY;
+    ConvPoolOpBase<CLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
+    LOG(ERROR) << "[C2DEBUG] after SetOutputSize";
+    bool need_allocation = Y->ResizeLike(fakeY, true);
     // Configure
     if (depthwise) {
       depth_conv_.configure(X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
@@ -227,13 +233,6 @@ bool CLConvOp<T, Activation>::RunOnDevice() {
     X_->lazy_allocate(Xblob, second_run_, true);
     filter_->lazy_allocate(filterblob, second_run_, true);
     bias_->lazy_allocate(biasblob, second_run_, true);
-    LOG(ERROR) << "[C2DEBUG] after X";
-    TensorCPU fakeX;
-    fakeX.Resize(X_->dims());
-    TensorCPU fakeY;
-    ConvPoolOpBase<CLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
-    LOG(ERROR) << "[C2DEBUG] after SetOutputSize";
-    bool need_allocation = Y->ResizeLike(fakeY, true);
     if (need_allocation) {
       LOG(ERROR) << "[C2DEBUG] Y->allocate() in third run.";
       Y->allocate();

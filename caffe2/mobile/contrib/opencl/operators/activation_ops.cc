@@ -36,6 +36,10 @@ bool CLReluOp<T>::RunOnDevice() {
     }
     relu_layer_.run();
   } else {
+    bool need_allocation = false;
+    if (Y->get_underlying() != X_->get_underlying()) {
+      need_allocation = Y->ResizeLike(*X_, true);
+    }
     // Configure
     relu_layer_.configure(
         X_->get_underlying(), Y->get_underlying(),
@@ -43,10 +47,6 @@ bool CLReluOp<T>::RunOnDevice() {
           arm_compute::ActivationLayerInfo::ActivationFunction::RELU));
     // Allocate
     X_->lazy_allocate(Xblob, second_run_, true);
-    bool need_allocation = false;
-    if (Y->get_underlying() != X_->get_underlying()) {
-      need_allocation = Y->ResizeLike(*X_, true);
-    }
     if (need_allocation) {
       Y->allocate();
     }
