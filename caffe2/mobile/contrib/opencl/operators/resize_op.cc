@@ -58,11 +58,11 @@ bool CLResizeNearestOp<T>::RunOnDevice() {
     Y->allocate();
     resize_layer_.run();
   } else {
+    bool need_allocation = Y->Resize(output_dims);
     // Configure
     resize_layer_.configure(X_->get_underlying(), Y->get_underlying(), arm_compute::InterpolationPolicy::NEAREST_NEIGHBOR, arm_compute::BorderMode::UNDEFINED);
     // Allocate
     X_->lazy_allocate(Xblob, second_run_, true);
-    bool need_allocation = Y->Resize(output_dims);
     if (need_allocation) {
       Y->allocate();
     }

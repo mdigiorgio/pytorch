@@ -124,6 +124,11 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
 
     conv_trans_.run();
   } else {
+    TensorCPU fakeX;
+    fakeX.Resize(X_->dims());
+    TensorCPU fakeY;
+    ConvTransposeUnpoolBase<CLContext>::SetOutputSize(fakeX, &fakeY, output_channels);
+    bool need_allocation = Y->ResizeLike(fakeY, true);
     // Configure
     conv_trans_.configure(
                     X_->get_underlying(), refilter_.get_underlying(), bias_->get_underlying(),
@@ -132,11 +137,6 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
                     arm_compute::WeightsInfo(false, 0, 0, 0, true /* retain weights from previous run */));
     // Allocate
     X_->lazy_allocate(Xblob, second_run_, true);
-    TensorCPU fakeX;
-    fakeX.Resize(X_->dims());
-    TensorCPU fakeY;
-    ConvTransposeUnpoolBase<CLContext>::SetOutputSize(fakeX, &fakeY, output_channels);
-    bool need_allocation = Y->ResizeLike(fakeY, true);
     if (need_allocation) {
       Y->allocate();
     }
