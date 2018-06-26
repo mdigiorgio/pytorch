@@ -2,6 +2,7 @@
 #include "caffe2/core/logging.h"
 #include "caffe2/opt/converter.h"
 #include "caffe2/opt/fusion.h"
+#include "caffe2/opt/passes.h"
 
 namespace caffe2 {
 namespace opt {
@@ -201,6 +202,9 @@ caffe2::NetDef tryConvertToACLOpenCL(caffe2::NetDef net, bool runFusion, std::un
   }
   return convertToCaffe2Proto(nn, net);
 }
+
+REGISTER_OPT_PASS_FROM_FUNC(FuseNNPACKConvRelu, fuseNNPACKConvRelu);
+REGISTER_OPT_PASS_FROM_FUNC(AddNNPACK, addNNPACK);
 
 } // namespace opt
 } // namespace caffe2

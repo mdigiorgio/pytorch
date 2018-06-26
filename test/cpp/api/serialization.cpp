@@ -1,23 +1,41 @@
 #include <catch.hpp>
 
-#include <torch/torch.h>
+#include <torch/nn/modules/linear.h>
+#include <torch/nn/modules/sequential.h>
+#include <torch/optim/optimizer.h>
+#include <torch/optim/sgd.h>
+#include <torch/serialization.h>
+#include <torch/tensor.h>
 
-#include "cereal/archives/portable_binary.hpp"
+#include <test/cpp/api/util.h>
 
-using namespace torch;
+#include <cereal/archives/portable_binary.hpp>
+
+#include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
+
 using namespace torch::nn;
+
+namespace {
+std::shared_ptr<Sequential> xor_model() {
+  return std::make_shared<Sequential>(
+      torch::SigmoidLinear(2, 8), torch::SigmoidLinear(8, 1));
+}
+} // namespace
 
 TEST_CASE("serialization") {
   SECTION("undefined") {
-    auto x = at::Tensor();
+    auto x = torch::Tensor();
 
     REQUIRE(!x.defined());
 
-    auto y = at::CPU(at::kFloat).randn({5});
+    auto y = torch::randn({5});
 
     std::stringstream ss;
-    save(ss, &x);
-    load(ss, &y);
+    torch::save(ss, &x);
+    torch::load(ss, &y);
 
     REQUIRE(!y.defined());
   }
@@ -34,13 +52,13 @@ TEST_CASE("serialization") {
         continue;
       }
 
-      auto x =
-          at::getType(at::kCPU, static_cast<at::ScalarType>(i)).ones({5, 5});
-      auto y = at::Tensor();
+      auto x = torch::ones(
+          {5, 5}, at::getType(at::kCPU, static_cast<at::ScalarType>(i)));
+      auto y = torch::empty({});
 
       std::stringstream ss;
-      save(ss, &x);
-      load(ss, &y);
+      torch::save(ss, &x);
+      torch::load(ss, &y);
 
       REQUIRE(y.defined());
       REQUIRE(x.sizes().vec() == y.sizes().vec());
@@ -53,8 +71,8 @@ TEST_CASE("serialization") {
   }
 
   SECTION("binary") {
-    auto x = at::CPU(at::kFloat).randn({5, 5});
-    auto y = at::Tensor();
+    auto x = torch::randn({5, 5});
+    auto y = torch::Tensor();
 
     std::stringstream ss;
     {
@@ -70,10 +88,9 @@ TEST_CASE("serialization") {
     REQUIRE(x.sizes().vec() == y.sizes().vec());
     REQUIRE(x.allclose(y));
   }
-
   SECTION("portable_binary") {
-    auto x = at::CPU(at::kFloat).randn({5, 5});
-    auto y = at::Tensor();
+    auto x = torch::randn({5, 5});
+    auto y = torch::Tensor();
 
     std::stringstream ss;
     {
@@ -91,9 +108,9 @@ TEST_CASE("serialization") {
   }
 
   SECTION("resized") {
-    auto x = at::CPU(at::kFloat).randn({11, 5});
+    auto x = torch::randn({11, 5});
     x.resize_({5, 5});
-    auto y = at::Tensor();
+    auto y = torch::Tensor();
 
     std::stringstream ss;
     {
@@ -109,11 +126,10 @@ TEST_CASE("serialization") {
     REQUIRE(x.sizes().vec() == y.sizes().vec());
     REQUIRE(x.allclose(y));
   }
-
   SECTION("sliced") {
-    auto x = at::CPU(at::kFloat).randn({11, 5});
+    auto x = torch::randn({11, 5});
     x = x.slice(0, 1, 3);
-    auto y = at::Tensor();
+    auto y = torch::Tensor();
 
     std::stringstream ss;
     {
@@ -131,9 +147,9 @@ TEST_CASE("serialization") {
   }
 
   SECTION("noncontig") {
-    auto x = at::CPU(at::kFloat).randn({11, 5});
+    auto x = torch::randn({11, 5});
     x = x.slice(1, 1, 4);
-    auto y = at::Tensor();
+    auto y = torch::Tensor();
 
     std::stringstream ss;
     {
@@ -152,15 +168,9 @@ TEST_CASE("serialization") {
 
   SECTION("xor") {
     // We better be able to save and load a XOR model!
-    auto makeModel = []() {
-      ContainerList list;
-      list.append(make(Linear(2, 8)));
-      list.append(make(Linear(8, 1)));
-      return make(list);
-    };
-    auto getLoss = [](std::shared_ptr<ContainerList> model, uint32_t bs) {
-      auto inp = at::CPU(at::kFloat).tensor({bs, 2});
-      auto lab = at::CPU(at::kFloat).tensor({bs});
+    auto getLoss = [](std::shared_ptr<Sequential> model, uint32_t bs) {
+      auto inp = torch::empty({bs, 2});
+      auto lab = torch::empty({bs});
       for (auto i = 0U; i < bs; i++) {
         auto a = std::rand() % 2;
         auto b = std::rand() % 2;
@@ -171,26 +181,27 @@ TEST_CASE("serialization") {
       }
 
       // forward
-      auto x = Var(inp);
-      auto y = Var(lab, false);
-      for (auto layer : *model)
-        x = layer->forward({x})[0].sigmoid_();
-      return at::binary_cross_entropy(x, y);
+      auto x = model->forward<torch::Tensor>(inp);
+      return at::binary_cross_entropy(x, lab);
     };
 
-    auto model = makeModel();
-    auto model2 = makeModel();
-    auto model3 = makeModel();
-    auto optim =
-        SGD(model, 1e-1).momentum(0.9).nesterov().weight_decay(1e-6).make();
+    auto model = xor_model();
+    auto model2 = xor_model();
+    auto model3 = xor_model();
+    auto optimizer = torch::optim::SGD(
+        model->parameters(),
+        torch::optim::SGDOptions(1e-1)
+            .momentum(0.9)
+            .nesterov(true)
+            .weight_decay(1e-6));
 
     float running_loss = 1;
     int epoch = 0;
     while (running_loss > 0.1) {
-      Variable loss = getLoss(model, 4);
-      optim->zero_grad();
-      backward(loss);
-      optim->step();
+      torch::Tensor loss = getLoss(model, 4);
+      optimizer.zero_grad();
+      loss.backward();
+      optimizer.step();
 
       running_loss = running_loss * 0.99 + loss.data().sum().toCFloat() * 0.01;
       REQUIRE(epoch < 3000);
@@ -198,39 +209,44 @@ TEST_CASE("serialization") {
     }
 
     std::stringstream ss;
-    save(ss, model);
-    load(ss, model2);
+    torch::save(ss, model);
+    torch::load(ss, model2);
 
     auto loss = getLoss(model2, 100);
     REQUIRE(loss.toCFloat() < 0.1);
   }
 
   SECTION("optim") {
-    auto model1 = make(Linear(5, 2));
-    auto model2 = make(Linear(5, 2));
-    auto model3 = make(Linear(5, 2));
+    auto model1 = Linear(5, 2);
+    auto model2 = Linear(5, 2);
+    auto model3 = Linear(5, 2);
 
     // Models 1, 2, 3 will have the same params
     std::stringstream ss;
-    save(ss, model1);
-    load(ss, model2);
+    torch::save(ss, model1.get());
+    torch::load(ss, model2.get());
     ss.seekg(0, std::ios::beg);
-    load(ss, model3);
+    torch::load(ss, model3.get());
 
     // Make some optimizers with momentum (and thus state)
-    auto optim1 = SGD(model1, 1e-1).momentum(0.9).make();
-    auto optim2 = SGD(model2, 1e-1).momentum(0.9).make();
-    auto optim2_2 = SGD(model2, 1e-1).momentum(0.9).make();
-    auto optim3 = SGD(model3, 1e-1).momentum(0.9).make();
-    auto optim3_2 = SGD(model3, 1e-1).momentum(0.9).make();
+    auto optim1 = torch::optim::SGD(
+        model1->parameters(), torch::optim::SGDOptions(1e-1).momentum(0.9));
+    auto optim2 = torch::optim::SGD(
+        model2->parameters(), torch::optim::SGDOptions(1e-1).momentum(0.9));
+    auto optim2_2 = torch::optim::SGD(
+        model2->parameters(), torch::optim::SGDOptions(1e-1).momentum(0.9));
+    auto optim3 = torch::optim::SGD(
+        model3->parameters(), torch::optim::SGDOptions(1e-1).momentum(0.9));
+    auto optim3_2 = torch::optim::SGD(
+        model3->parameters(), torch::optim::SGDOptions(1e-1).momentum(0.9));
 
-    auto x = Var(at::CPU(at::kFloat).ones({10, 5}), true);
+    auto x = torch::ones({10, 5}, at::requires_grad());
 
-    auto step = [&](Optimizer optim, std::shared_ptr<Module> model) {
-      optim->zero_grad();
+    auto step = [&](torch::optim::Optimizer& optimizer, Linear model) {
+      optimizer.zero_grad();
       auto y = model->forward({x})[0].sum();
-      backward(y);
-      optim->step();
+      y.backward();
+      optimizer.step();
     };
 
     // Do 2 steps of model1
@@ -244,15 +260,15 @@ TEST_CASE("serialization") {
     // Do 2 steps of model 3 while saving the optimizer
     step(optim3, model3);
     ss.clear();
-    save(ss, optim3);
-    load(ss, optim3_2);
+    torch::save(ss, &optim3);
+    torch::load(ss, &optim3_2);
     step(optim3_2, model3);
 
     auto param1 = model1->parameters();
     auto param2 = model2->parameters();
     auto param3 = model3->parameters();
     for (auto& p : param1) {
-      auto name = p.first;
+      auto& name = p.key;
       // Model 1 and 3 should be the same
       REQUIRE(param1[name].norm().toCFloat() == param3[name].norm().toCFloat());
       REQUIRE(param1[name].norm().toCFloat() != param2[name].norm().toCFloat());
@@ -261,66 +277,57 @@ TEST_CASE("serialization") {
 }
 
 TEST_CASE("serialization_cuda", "[cuda]") {
-  SECTION("xor") {
-    // We better be able to save and load a XOR model!
-    auto makeModel = []() {
-      ContainerList list;
-      list.append(make(Linear(2, 8)));
-      list.append(make(Linear(8, 1)));
-      return make(list);
-    };
-    auto getLoss = [](std::shared_ptr<ContainerList> model, uint32_t bs) {
-      auto inp = at::CPU(at::kFloat).tensor({bs, 2});
-      auto lab = at::CPU(at::kFloat).tensor({bs});
-      for (auto i = 0U; i < bs; i++) {
-        auto a = std::rand() % 2;
-        auto b = std::rand() % 2;
-        auto c = a ^ b;
-        inp[i][0] = a;
-        inp[i][1] = b;
-        lab[i] = c;
-      }
-
-      // forward
-      auto x = Var(inp);
-      auto y = Var(lab, false);
-      for (auto layer : *model)
-        x = layer->forward({x})[0].sigmoid_();
-      return at::binary_cross_entropy(x, y);
-    };
-
-    auto model = makeModel();
-    auto model2 = makeModel();
-    auto model3 = makeModel();
-    auto optim =
-        SGD(model, 1e-1).momentum(0.9).nesterov().weight_decay(1e-6).make();
-
-    float running_loss = 1;
-    int epoch = 0;
-    while (running_loss > 0.1) {
-      Variable loss = getLoss(model, 4);
-      optim->zero_grad();
-      backward(loss);
-      optim->step();
-
-      running_loss = running_loss * 0.99 + loss.data().sum().toCFloat() * 0.01;
-      REQUIRE(epoch < 3000);
-      epoch++;
+  // We better be able to save and load a XOR model!
+  auto getLoss = [](std::shared_ptr<Sequential> model, uint32_t bs) {
+    auto inp = torch::empty({bs, 2});
+    auto lab = torch::empty({bs});
+    for (auto i = 0U; i < bs; i++) {
+      auto a = std::rand() % 2;
+      auto b = std::rand() % 2;
+      auto c = a ^ b;
+      inp[i][0] = a;
+      inp[i][1] = b;
+      lab[i] = c;
     }
 
-    std::stringstream ss;
-    save(ss, model);
-    load(ss, model2);
+    // forward
+    auto x = model->forward<torch::Tensor>(inp);
+    return at::binary_cross_entropy(x, lab);
+  };
 
-    auto loss = getLoss(model2, 100);
-    REQUIRE(loss.toCFloat() < 0.1);
+  auto model = xor_model();
+  auto model2 = xor_model();
+  auto model3 = xor_model();
+  auto optimizer = torch::optim::SGD(
+      model->parameters(),
+      torch::optim::SGDOptions(1e-1).momentum(0.9).nesterov(true).weight_decay(
+          1e-6));
 
-    model2->cuda();
-    ss.clear();
-    save(ss, model2);
-    load(ss, model3);
+  float running_loss = 1;
+  int epoch = 0;
+  while (running_loss > 0.1) {
+    torch::Tensor loss = getLoss(model, 4);
+    optimizer.zero_grad();
+    loss.backward();
+    optimizer.step();
 
-    loss = getLoss(model3, 100);
-    REQUIRE(loss.toCFloat() < 0.1);
+    running_loss = running_loss * 0.99 + loss.data().sum().toCFloat() * 0.01;
+    REQUIRE(epoch < 3000);
+    epoch++;
   }
+
+  std::stringstream ss;
+  torch::save(ss, model);
+  torch::load(ss, model2);
+
+  auto loss = getLoss(model2, 100);
+  REQUIRE(loss.toCFloat() < 0.1);
+
+  model2->cuda();
+  ss.clear();
+  torch::save(ss, model2);
+  torch::load(ss, model3);
+
+  loss = getLoss(model3, 100);
+  REQUIRE(loss.toCFloat() < 0.1);
 }
