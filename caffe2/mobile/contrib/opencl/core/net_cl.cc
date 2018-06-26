@@ -83,14 +83,14 @@ bool CLNet::Run() {
 
   VLOG(1) << "Running net " << name_;
   int i = 0;
-  //Timer timer;
+  Timer timer;
   for (auto& op : operators_) {
-    VLOG(2) << "[C2DEBUG] running " << ProtoDebugString(op->debug_def()) << " " << i;
+    LOG(ERROR) << "[C2DEBUG] running " << ProtoDebugString(op->debug_def()) << " " << i;
     ++i;
-    //timer.Start();
+    timer.Start();
     bool res = op->Run();
-    // auto millis = timer.MilliSeconds();
-    // LOG(ERROR) << "[C2DEBUG] OP " << op->debug_def().type() << " " << millis <<" ms.";
+    auto millis = timer.MilliSeconds();
+    LOG(ERROR) << "[C2DEBUG] OP " << op->debug_def().type() << " " << millis <<" ms.";
     if (!res) {
       LOG(ERROR) << "[C2DEBUG] Operator failed: " << ProtoDebugString(op->debug_def());
       return false;

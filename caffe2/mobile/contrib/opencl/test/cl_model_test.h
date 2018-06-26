@@ -8,7 +8,7 @@
 #include <unordered_set>
 
 CAFFE2_DEFINE_int(warmup, 3, "The number of iterations to warm up.");
-CAFFE2_DEFINE_int(iter, 100, "The number of iterations to run.");
+CAFFE2_DEFINE_int(iter, 10, "The number of iterations to run.");
 CAFFE2_DEFINE_bool(
     run_individual,
     true,
@@ -29,7 +29,7 @@ namespace caffe2 {
     predict_net_def.CopyFrom(tmp_net_def);
     predict_net_def.clear_op();
     predict_net_def.clear_external_output();
-    for (auto i = 0; i < 2; ++i) {
+    for (auto i = 0; i < tmp_net_def.op_size(); ++i) {
       auto op = predict_net_def.add_op();
       op->CopyFrom(tmp_net_def.op(i));
     }
@@ -56,7 +56,7 @@ namespace caffe2 {
   LOG(ERROR) << "[C2DEBUG] after compareNetResult4D";
   NetBase* net = ws->CreateNet(predict_net_def_gpu);
   LOG(ERROR) << "[C2DEBUG] Benchmarking OpenCL Net";
-  net->TEST_Benchmark(caffe2::FLAGS_warmup, caffe2::FLAGS_iter, caffe2::FLAGS_run_individual);
+  //net->TEST_Benchmark(caffe2::FLAGS_warmup, caffe2::FLAGS_iter, caffe2::FLAGS_run_individual);
   // Test CPU
   for (auto i = 0; i < predict_net_def.op().size(); ++i) {
     auto op = predict_net_def.mutable_op(i);

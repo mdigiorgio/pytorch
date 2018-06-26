@@ -50,6 +50,8 @@ SimpleNet::SimpleNet(
 bool SimpleNet::Run() {
   StartAllObservers();
   VLOG(1) << "Running net " << name_;
+  LOG(INFO) << "------------------------------";
+  LOG(INFO) << "Running net: " << name_;
   for (auto& op : operators_) {
     VLOG(1) << "Running operator " << op->debug_def().name() << "("
             << op->debug_def().type() << ").";
@@ -60,7 +62,10 @@ bool SimpleNet::Run() {
     const auto& net_name = name_.c_str();
     CAFFE_SDT(operator_start, net_name, op_name, op_type, op_ptr);
 #endif
+    Timer timer;
     bool res = op->Run();
+    auto millis = timer.MilliSeconds();
+    LOG(ERROR) << "[C2DEBUG] OP " << ProtoDebugString(op->debug_def()) << " " << millis <<" ms.";
 #ifdef CAFFE2_ENABLE_SDT
     CAFFE_SDT(operator_done, net_name, op_name, op_type, op_ptr);
 #endif
@@ -69,6 +74,7 @@ bool SimpleNet::Run() {
       return false;
     }
   }
+  LOG(INFO) << "------------------------------";
   StopAllObservers();
   return true;
 }
