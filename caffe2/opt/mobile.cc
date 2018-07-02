@@ -143,8 +143,8 @@ void fuseNNPACKConvRelu(repr::NNModule* nn) {
 }
 
 void runOpenCLFusion(repr::NNModule* nn) {
-  //fuseConvRelu(nn);
-  //fuseConvSigmoid(nn);
+  fuseConvRelu(nn);
+  fuseConvSigmoid(nn);
 }
 
 caffe2::NetDef tryConvertToACLOpenCL(caffe2::NetDef net, bool runFusion, std::unordered_set<std::string> cpuOps) {
@@ -163,8 +163,8 @@ caffe2::NetDef tryConvertToACLOpenCL(caffe2::NetDef net, bool runFusion, std::un
     auto nn_op = dyn_cast<nom::repr::NeuralNetOperator>(node_data);
     if (cpuOps.count(nn_op->getName()) > 0) {
       // CPU Op
-      std::vector<repr::NNGraph::NodeRef> copy_from_cl;
       auto inputs = repr::nn::getInputs(node);
+      auto in_edges = node->getInEdges();
       for (auto i = 0; i < inputs.size(); ++i) {
         // if the blob is produced by a OpenCL Op, we need to insert CopyFromCL Op
         if (repr::nn::hasProducer(inputs[i])) {
@@ -173,34 +173,39 @@ caffe2::NetDef tryConvertToACLOpenCL(caffe2::NetDef net, bool runFusion, std::un
           auto producer_data = producer_node->data().get();
           auto producer_op = dyn_cast<nom::repr::NeuralNetOperator>(producer_data);
           if (cpuOps.count(producer_op->getName()) == 0) {
-            copy_from_cl.push_back(inputs[i]);
+            LOG(ERROR) << "[C2DEBUG] nn_op:" << nn_op->getName() << " copy_from_cl: " << inputs[i];
+            auto copy_node = repr::nn::insertOp<repr::CopyFromCL>(nn.dataFlow, inputs[i], node);
+            node->removeInEdge(in_edges[i]);
+          } else {
+            node->removeInEdge(in_edges[i]);
+            node->addInEdge(in_edges[i]);
           }
-        }
-      }
-      if (copy_from_cl.size() > 0) {
-        auto copy_node = repr::nn::insertOp<repr::CopyFromCL>(nn.dataFlow, copy_from_cl[0], node);
-        for (auto i = 1; i < copy_from_cl.size(); ++i) {
-          auto new_node = repr::nn::insertOp<repr::CopyFromCL>(nn.dataFlow, copy_from_cl[i], node);
-          nn.dataFlow.replaceNode(new_node, copy_node);
+        } else {
+          node->removeInEdge(in_edges[i]);
+          node->addInEdge(in_edges[i]);
         }
       }
     } else {
       // OpenCL Op
-      auto inputs = repr::nn::getInputs(node);
-      for (auto i = 0; i < inputs.size(); ++i) {
-        auto new_node = nn.dataFlow.createNode(make_unique<repr::Tensor>(repr::nn::get<repr::NeuralNetData>(inputs[i])->getName() + "_"));
-        nn.dataFlow.replaceNode(inputs[i], new_node);
+      // set device option to OPENCL
+      auto annotation = nn_op->getMutableAnnotation();
+      if (!annotation || !isa<Caffe2Annotation>(annotation)) {
+        continue;
       }
-      auto outputs = repr::nn::getOutputs(node);
-      for (auto i = 0; i < outputs.size(); ++i) {
-        if (repr::nn::hasConsumer(outputs[i])) {
-          auto new_node = nn.dataFlow.createNode(make_unique<repr::Tensor>(repr::nn::get<repr::NeuralNetData>(outputs[i])->getName() + "_"));
-          nn.dataFlow.replaceNode(outputs[i], new_node);
-        }
-      }
+      auto* op = dyn_cast<Caffe2Annotation>(annotation)->getMutableOperatorDef();
+      op->mutable_device_option()->set_device_type(OPENCL);
     }
   }
-  return convertToCaffe2Proto(nn, net);
+  caffe2::NetDef new_net = convertToCaffe2Proto(nn, net);
+  new_net.set_type("opencl");
+  for (auto i = 0; i < new_net.op().size(); ++i) {
+    auto* op_def = new_net.mutable_op(i);
+    if (std::find(cpuOps.begin(), cpuOps.end(), op_def->type()) == cpuOps.end()) {
+      op_def->mutable_device_option()->set_device_type(OPENCL);
+    }
+
+  }
+  return new_net;
 }
 
 REGISTER_OPT_PASS_FROM_FUNC(FuseNNPACKConvRelu, fuseNNPACKConvRelu);

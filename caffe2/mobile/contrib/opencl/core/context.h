@@ -243,13 +243,13 @@ public:
   }
 
 
-  const int32_t ndim() const { return dims_.size(); }
+  int32_t ndim() const { return dims_.size(); }
 
   vector<TIndex> dims() const { return dims_; }
 
-  const int32_t dim32(const int index) const { return dims_.at(index); }
+  int32_t dim32(const int index) const { return dims_.at(index); }
 
-  const int32_t size() const {
+  int32_t size() const {
     int32_t s = 1;
     for (int i = 0; i < dims_.size(); i++) {
       s *= dims_[i];

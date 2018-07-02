@@ -203,25 +203,26 @@ static NetDef runOpenCLFusion(const NetDef& def, std::unordered_set<std::string>
   return mdef;
 }
 
-void dumpDefForOpenCL(const NetDef& d) {
-  for (const auto& op : d.op()) {
-    LOG(INFO) << op.input(0) << " -> " << op.type() << " -> " << op.output(0);
-  }
-}
+// void dumpDefForOpenCL(const NetDef& d) {
+//   for (const auto& op : d.op()) {
+//     LOG(ERROR) << "[C2DEBUG] " << op.input(0) << " -> " << op.type() << " -> " << op.output(0);
+//   }
+// }
 
-// // For debugging
-// void dumpDefForOpenCL(const NetDef &net) {
-//  for (const auto &op : net.op()) {
-//    printf("***Operator: %s\n", op.type().c_str());
-//    for (auto input : op.input()) {
-//      printf("\tInput: %s\n", input.c_str());
-//    }
-//
-//    for (auto output : op.output()) {
-//      printf("\tOutput: %s\n", output.c_str());
-//    }
-//  }
-//}
+// For debugging
+void dumpDefForOpenCL(const NetDef &net) {
+ for (const auto &op : net.op()) {
+   printf("***Operator: %s\n", op.type().c_str());
+   printf("\tDeviceType: %d", op.device_option().device_type());
+   for (auto input : op.input()) {
+     printf("\tInput: %s\n", input.c_str());
+   }
+
+   for (auto output : op.output()) {
+     printf("\tOutput: %s\n", output.c_str());
+   }
+ }
+}
 
 NetDef rewritePredictNetForOpenCL(const NetDef& predictNet, bool runFusion, std::unordered_set<std::string> cpuOps) {
   CAFFE_ENFORCE_GE(predictNet.op_size(), 1);

@@ -5,6 +5,7 @@
 
 #include "caffe2/core/operator.h"
 #include "caffe2/core/workspace.h"
+#include "caffe2/opt/mobile.h"
 #include <unordered_set>
 
 CAFFE2_DEFINE_int(warmup, 3, "The number of iterations to warm up.");
@@ -35,16 +36,16 @@ namespace caffe2 {
     }
     auto* output_ = predict_net_def.add_external_output();
     *output_ = predict_net_def.op()[predict_net_def.op().size() - 1].output()[0];
+    //predict_net_def_gpu = opt::tryConvertToACLOpenCL(predict_net_def, false, cpu_ops);
     tryConvertToOpenCL(predict_net_def, &predict_net_def_gpu, false, cpu_ops);
     LOG(ERROR) << "[C2DEBUG] predict_net_def_gpu.size(): " << predict_net_def_gpu.op().size();
     // change the name of last op
     auto index = predict_net_def_gpu.op().size() - 1;
-    LOG(ERROR) << "[C2DEBUG] index:" << index;
+    dumpDefForOpenCL(predict_net_def_gpu);
     auto last_blob = predict_net_def_gpu.op()[index].output()[0];
     auto op = predict_net_def_gpu.mutable_op(index);
     auto output = op->mutable_output(0);
     *output = last_blob + "_gpu";
-    LOG(ERROR) << "[C2DEBUG] last blob: " << last_blob;
     for (auto i = 0; i < predict_net_def_gpu.external_output_size(); ++i) {
       auto out = predict_net_def_gpu.mutable_external_output(i);
       if (*out == last_blob) {
@@ -56,7 +57,7 @@ namespace caffe2 {
   LOG(ERROR) << "[C2DEBUG] after compareNetResult4D";
   NetBase* net = ws->CreateNet(predict_net_def_gpu);
   LOG(ERROR) << "[C2DEBUG] Benchmarking OpenCL Net";
-  //net->TEST_Benchmark(caffe2::FLAGS_warmup, caffe2::FLAGS_iter, caffe2::FLAGS_run_individual);
+  net->TEST_Benchmark(caffe2::FLAGS_warmup, caffe2::FLAGS_iter, caffe2::FLAGS_run_individual);
   // Test CPU
   for (auto i = 0; i < predict_net_def.op().size(); ++i) {
     auto op = predict_net_def.mutable_op(i);

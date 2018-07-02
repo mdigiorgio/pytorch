@@ -115,6 +115,11 @@ void fuseActivation(
     postprocess(conv_node);
   }
 }
+
+
+bool fuseConvRelu(nom::repr::NNModule* nn);
+bool fuseConvSigmoid(nom::repr::NNModule* nn);
+
 } // namespace opt
 } // namespace caffe2
 

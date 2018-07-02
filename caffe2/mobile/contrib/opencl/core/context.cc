@@ -7,7 +7,7 @@
 
 namespace caffe2 {
 
-CAFFE_KNOWN_TYPE(OpenCLTensor<half>);
+CAFFE_KNOWN_TYPE(OpenCLTensor<DataType>);
 CAFFE_KNOWN_TYPE(Tensor<CLContext>);
 
 bool CLContext::initialized = false;

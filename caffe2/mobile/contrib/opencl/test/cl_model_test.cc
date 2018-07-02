@@ -15,7 +15,7 @@ namespace caffe2 {
 
 TEST(OPENCLModelTest, Model) {
   std::string parent_path = "/data/local/tmp/";
-  benchmarkModel(parent_path + "411_init.pb", parent_path + "411.pb", "data", {1, 3, 640, 360}, "model", {"GenerateProposals", "BBoxTransform", "BoxWithNMSLimit", "RoIAlign", "BBoxID", "HeatmapPCAKeypoint", "Reshape", "Slice", "ChannelShuffle", "Shape", "Split", "AddPadding", "NormalizePlanarYUV"});
+  benchmarkModel(parent_path + "411_init.pb", parent_path + "411.pb", "data", {1, 3, 640, 360}, "model", {"GenerateProposals", "BBoxTransform", "BoxWithNMSLimit", "RoIAlign", "BBoxID", "HeatmapPCAKeypoint", "Reshape", "Slice", "Shape", "Split", "AddPadding", "NormalizePlanarYUV"});
 }
 
 } // namespace caffe2
