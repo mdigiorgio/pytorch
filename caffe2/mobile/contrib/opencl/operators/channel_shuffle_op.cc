@@ -25,8 +25,6 @@ bool CLChannelShuffleOp<T>::RunOnDevice() {
   auto *Xblob = OperatorBase::Inputs()[0];
   X_ = CLContext::getCLTensor<T>(Xblob, X_.release());
 
-  LOG(ERROR) << "[C2DEBUG] channel shuffle X_: " << X_->dim32(0) << " " << X_->dim32(1)
-             << " " << X_->dim32(2) << " " << X_->dim32(3);
   OpenCLTensor<T> *Y =
       OperatorBase::Outputs()[0]->template GetMutable<OpenCLTensor<T>>();
 
