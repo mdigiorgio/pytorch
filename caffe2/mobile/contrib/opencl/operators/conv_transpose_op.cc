@@ -52,15 +52,13 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
   CAFFE_ENFORCE(bias_->ndim(), 1);
   CAFFE_ENFORCE(bias_->dim32(0), output_channels);
 
+  arm_compute::PadStrideInfo pad_stride_info(stride_[0], stride_[1], pads_[0], pads_[1]);
+
   // TODO: remove filter reshaping at some point
   auto dims = filter_->dims();
   dims[0] = output_channels;
   dims[1] = input_channels;
   refilter_.Resize(dims);
-
-  // TODO: fix padding for deconvolution
-  const unsigned int pad_x = 1;
-  const unsigned int pad_y = 1;
 
   if (first_run_) {
     first_run_ = false;
@@ -89,7 +87,7 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
     conv_trans_.configure(
         X_->get_underlying(), refilter_.get_underlying(), bias_->get_underlying(),
         Y->get_underlying(),
-        arm_compute::PadStrideInfo(stride_[0], stride_[1], pad_x, pad_y), 0, 0);
+        pad_stride_info, 0, 0);
 
   } else if (second_run_) {
     // Always attempt to copy the CPU to GPU on input
@@ -110,8 +108,8 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
       for (auto oc = 0; oc < output_channels; ++oc) {
         for (auto kh = 0; kh < kH; ++kh) {
           for (auto kw = 0; kw < kW; ++kw) {
-            const auto inputIdx = ic + oc * input_channels + kh * input_channels * output_channels + kw * input_channels * output_channels * kH;
-            const auto outputIdx = oc + ic * output_channels + kh * output_channels * input_channels + kw * output_channels * input_channels * kH;
+            const auto inputIdx = kw + kh * kW + oc * kH * kW + ic * kH * kW * output_channels;
+            const auto outputIdx = kw + kh * kW + ic * kH * kW + oc * kH * kW * input_channels;
             DCHECK_LT(inputIdx, filter_->size());
             DCHECK_LT(outputIdx, filter_->size());
             refilter_data[outputIdx] = filter_data[inputIdx];
@@ -133,7 +131,7 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
     conv_trans_.configure(
                     X_->get_underlying(), refilter_.get_underlying(), bias_->get_underlying(),
                     Y->get_underlying(),
-                    arm_compute::PadStrideInfo(stride_[0], stride_[1], pad_x, pad_y), 0, 0,
+                    pad_stride_info, 0, 0,
                     arm_compute::WeightsInfo(false, 0, 0, 0, true /* retain weights from previous run */));
     // Allocate
     X_->lazy_allocate(Xblob, second_run_, true);
@@ -150,8 +148,8 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
       for (auto oc = 0; oc < output_channels; ++oc) {
         for (auto kh = 0; kh < kH; ++kh) {
           for (auto kw = 0; kw < kW; ++kw) {
-            const auto inputIdx = ic + oc * input_channels + kh * input_channels * output_channels + kw * input_channels * output_channels * kH;
-            const auto outputIdx = oc + ic * output_channels + kh * output_channels * input_channels + kw * output_channels * input_channels * kH;
+            const auto inputIdx = kw + kh * kW + oc * kH * kW + ic * kH * kW * output_channels;
+            const auto outputIdx = kw + kh * kW + ic * kH * kW + oc * kH * kW * input_channels;
             DCHECK_LT(inputIdx, filter_->size());
             DCHECK_LT(outputIdx, filter_->size());
             refilter_data[outputIdx] = filter_data[inputIdx];
