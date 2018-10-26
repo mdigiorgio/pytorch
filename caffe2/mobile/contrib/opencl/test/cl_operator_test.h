@@ -58,9 +58,8 @@ void compareNetResult(Workspace& ws,
   getTensorCPU(g_, g);
 
   auto &t = cpu_out->Get<TensorCPU>();
-  EXPECT_EQ(g.size(), t.size());
 
-  for (auto i = 0; i < g.size(); ++i) {
+  for (auto i = 0; i < t.size(); ++i) {
     if (relative) {
       EXPECT_NEAR(g.data<float>()[i], t.data<float>()[i], tol + tol * std::abs(t.data<float>()[i])) << "at index " << i;
     } else{
