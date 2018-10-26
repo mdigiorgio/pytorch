@@ -18,10 +18,13 @@
 #include "arm_compute/runtime/CL/CLFunctions.h"
 #include "arm_compute/runtime/CL/CLScheduler.h"
 #include "arm_compute/runtime/CL/CLTensor.h"
+#include "arm_compute/runtime/CL/CLTuner.h"
 
 #include "arm_compute/core/Types.h"
 #include "utils/Utils.h"
 #include "include/half/half.hpp"
+
+#include "arm_compute/runtime/CPP/CPPFunctions.h"
 
 namespace caffe2 {
 
