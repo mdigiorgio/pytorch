@@ -58,10 +58,6 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
   dims[1] = input_channels;
   refilter_.Resize(dims);
 
-  // TODO: fix padding for deconvolution
-  const unsigned int pad_x = 1;
-  const unsigned int pad_y = 1;
-
   if (first_run_) {
     first_run_ = false;
 
@@ -89,7 +85,7 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
     conv_trans_.configure(
         X_->get_underlying(), refilter_.get_underlying(), bias_->get_underlying(),
         Y->get_underlying(),
-        arm_compute::PadStrideInfo(stride_[0], stride_[1], pad_x, pad_y), 0, 0);
+        arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), 0, 0);
 
   } else if (second_run_) {
     // Always attempt to copy the CPU to GPU on input
@@ -133,7 +129,7 @@ bool CLConvTransposeOp<T>::RunOnDevice() {
     conv_trans_.configure(
                     X_->get_underlying(), refilter_.get_underlying(), bias_->get_underlying(),
                     Y->get_underlying(),
-                    arm_compute::PadStrideInfo(stride_[0], stride_[1], pad_x, pad_y), 0, 0,
+                    arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]), 0, 0,
                     arm_compute::WeightsInfo(false, 0, 0, 0, true /* retain weights from previous run */));
     // Allocate
     X_->lazy_allocate(Xblob, second_run_, true);
