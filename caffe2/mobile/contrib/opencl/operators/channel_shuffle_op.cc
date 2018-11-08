@@ -25,13 +25,10 @@ bool CLChannelShuffleOp<T>::RunOnDevice() {
   auto *Xblob = OperatorBase::Inputs()[0];
   X_ = CLContext::getCLTensor<T>(Xblob, X_.release());
 
-  LOG(ERROR) << "[C2DEBUG] channel shuffle X_: " << X_->dim32(0) << " " << X_->dim32(1)
-             << " " << X_->dim32(2) << " " << X_->dim32(3);
   OpenCLTensor<T> *Y =
       OperatorBase::Outputs()[0]->template GetMutable<OpenCLTensor<T>>();
 
   if (first_run_) {
-    LOG(ERROR) << "[C2DEBUG] first_run";
     first_run_ = false;
     if (Y->get_underlying() != X_->get_underlying())
     {
@@ -39,7 +36,6 @@ bool CLChannelShuffleOp<T>::RunOnDevice() {
     }
     cs_layer_.configure(X_->get_underlying(), Y->get_underlying(), group_);
   } else if (second_run_) {
-    LOG(ERROR) << "[C2DEBUG] second_run";
     X_->lazy_allocate(Xblob, second_run_, true);
     second_run_ = false;
     // in place operation, do not need to allocate new memory
@@ -50,16 +46,12 @@ bool CLChannelShuffleOp<T>::RunOnDevice() {
   } else {
     // Configure
     cs_layer_.configure(X_->get_underlying(), Y->get_underlying(), group_);
-    LOG(ERROR) << "[C2DEBUG] third_run+";
-    LOG(ERROR) << "[C2DEBUG] X->lazy_allocate";
     // Allocate
     X_->lazy_allocate(Xblob, second_run_, true);
     bool need_allocation = false;
     if (Y->get_underlying() != X_->get_underlying()) {
-      LOG(ERROR) << "[C2DEBUG] channel shuffle: Y->ResizeLike(X);";
       need_allocation = Y->ResizeLike(*X_, true);
     }
-    LOG(ERROR) << "[C2DEBUG] need allocation" << need_allocation;
     if (need_allocation) {
       Y->allocate();
     }
