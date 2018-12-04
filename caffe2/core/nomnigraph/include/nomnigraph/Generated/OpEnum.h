@@ -43,4 +43,7 @@ Int8SumRelu,
 Int8AveragePoolRelu,
 Int8MaxPoolRelu,
 CopyFromCL,
-Sigmoid
+Sigmoid,
+BatchMatMul,
+BatchGather,
+ConcatBatchMatMulBatchGatherOp

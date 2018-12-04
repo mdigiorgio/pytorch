@@ -90,3 +90,9 @@ case NNKind::CopyFromCL:
     return "CopyFromCL";
 case NNKind::Sigmoid:
     return "Sigmoid";
+case NNKind::BatchMatMul:
+    return "BatchMatMul";
+case NNKind::BatchGather:
+    return "BatchGather";
+case NNKind::ConcatBatchMatMulBatchGatherOp:
+    return "ConcatBatchMatMulBatchGatherOp";

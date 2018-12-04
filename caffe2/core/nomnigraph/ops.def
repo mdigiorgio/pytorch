@@ -58,6 +58,8 @@ BatchNormalization
 FC
 GivenTensorFill
 Concat
+- Axis : int : -1
+- AddAxis : bool : false
 Softmax
 ChannelShuffle
 Add
@@ -90,3 +92,10 @@ Int8MaxPoolRelu : MaxPoolRelu
 
 CopyFromCL
 Sigmoid
+BatchMatMul
+- TransA : bool : false
+- TransB : bool : true
+- Broadcast: bool : false
+BatchGather
+ConcatBatchMatMulBatchGatherOp
+
