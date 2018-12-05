@@ -1,4 +1,5 @@
 #include "ATen/ATen.h"
+#include "ATen/cuda/CUDAContext.h"
 #include "ATen/cuda/CUDAApplyUtils.cuh"
 
 namespace at {
@@ -111,25 +112,25 @@ __global__ void kernelHistogram1D(
   }
 }
 
-#define HANDLE_CASE(MEMORY_TYPE, WEIGHTS_OP)                               \
+#define HANDLE_CASE(MEMORY_TYPE, WEIGHTS_OP, SHARED_MEM)                   \
   kernelHistogram1D<output_t, input_t, IndexType, 1, 2, 1, MEMORY_TYPE>    \
       <<<grid,                                                             \
          block,                                                            \
-         (MEMORY_TYPE == CUDAHistogramMemoryType::SHARED) ? sharedMem : 0, \
-         at::globalContext().getCurrentCUDAStream()>>>(                    \
+         SHARED_MEM,                                                       \
+         getCurrentCUDAStream()>>>(                    \
           aInfo, pInfo, bInfo, binsize, totalElements, WEIGHTS_OP);        \
   AT_ASSERTM(cudaGetLastError() == cudaSuccess, "kernelHistogram1D failed");
 
-#define HANDLE_SWITCH_CASE(mType, getOp)                        \
-  switch (mType) {                                              \
-    case CUDAHistogramMemoryType::SHARED:                       \
-      HANDLE_CASE(CUDAHistogramMemoryType::SHARED, getOp);      \
-      break;                                                    \
-    case CUDAHistogramMemoryType::MULTI_BLOCK:                  \
-      HANDLE_CASE(CUDAHistogramMemoryType::MULTI_BLOCK, getOp); \
-      break;                                                    \
-    default:                                                    \
-      HANDLE_CASE(CUDAHistogramMemoryType::GLOBAL, getOp);      \
+#define HANDLE_SWITCH_CASE(mType, getOp)                                   \
+  switch (mType) {                                                         \
+    case CUDAHistogramMemoryType::SHARED:                                  \
+      HANDLE_CASE(CUDAHistogramMemoryType::SHARED, getOp, sharedMem);      \
+      break;                                                               \
+    case CUDAHistogramMemoryType::MULTI_BLOCK:                             \
+      HANDLE_CASE(CUDAHistogramMemoryType::MULTI_BLOCK, getOp, 0);         \
+      break;                                                               \
+    default:                                                               \
+      HANDLE_CASE(CUDAHistogramMemoryType::GLOBAL, getOp, 0);              \
   }
 
 inline int64_t getFreeGlobalMemory() {
@@ -184,8 +185,7 @@ bool CUDA_tensor_histogram(
   }
 
   CUDAHistogramMemoryType memType = CUDAHistogramMemoryType::GLOBAL;
-  auto maxSharedMem =
-      at::globalContext().getCurrentDeviceProperties()->sharedMemPerBlock;
+  auto maxSharedMem = getCurrentDeviceProperties()->sharedMemPerBlock;
   auto sharedMem = nbins * sizeof(output_t) + 8; // 8 guard bytes
   auto maxGlobalMem = getFreeGlobalMemory();
   auto multiBlockMem = nbins * grid.x * sizeof(output_t) + 8; // 8 guard bytes
@@ -244,9 +244,12 @@ Tensor _bincount_cuda_template(
   if (minlength < 0) {
     AT_ERROR("minlength should be >= 0");
   }
-  if (self.dim() != 1 || self.numel() == 0 ||
+  if (self.dim() == 1 && self.numel() == 0) {
+    return native::zeros({minlength}, device(kCUDA).dtype(kLong));
+  }
+  if (self.dim() != 1 ||
       (!std::is_same<input_t, uint8_t>::value &&
-       *self.min().toBackend(kCPU).data<input_t>() < 0)) {
+       *self.min().cpu().data<input_t>() < 0)) {
     AT_ERROR("bincount only supports 1-d non-negative integral inputs.");
   }
 
@@ -255,8 +258,7 @@ Tensor _bincount_cuda_template(
     AT_ERROR("input and weights should have the same length");
   }
 
-  auto maxScalarGpu = Scalar(self.max());
-  auto nbins = maxScalarGpu.local().to<int64_t>() + 1L;
+  auto nbins = self.max().item<int64_t>() + 1L;
   nbins = std::max(nbins, minlength);
   // alloc output counter on GPU
   Tensor output;
@@ -265,7 +267,7 @@ Tensor _bincount_cuda_template(
     auto ret = cuda::CUDA_tensor_histogram<weights_t, input_t, true>(
         output, self, weights, nbins, 1);
   } else {
-    output = native::zeros({nbins}, device(kCUDA).dtype(kLong));
+    output = native::zeros({nbins}, device(DeviceType::CUDA).dtype(kLong));
     auto ret = cuda::CUDA_tensor_histogram<int64_t, input_t, false>(
         output, self, weights, nbins, 1);
   }

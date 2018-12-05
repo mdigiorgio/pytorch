@@ -54,8 +54,14 @@ BatchNormalization
 - Spatial : bool : true
 - IsTest : bool : false
 
+Clip
+- Min : float
+- Max : float
 
 FC
+- Axis : int : 1
+- AxisW : int : 1
+
 GivenTensorFill
 Concat
 - Axis : int : -1
@@ -63,8 +69,12 @@ Concat
 Softmax
 ChannelShuffle
 Add
+- Broadcast : int : 0
 Reshape
 Flatten
+
+CopyToOpenCL
+CopyFromOpenCL
 
 NCHW2NHWC
 NHWC2NCHW
@@ -90,8 +100,6 @@ Int8SumRelu : SumRelu
 Int8AveragePoolRelu : AveragePoolRelu
 Int8MaxPoolRelu : MaxPoolRelu
 
-CopyFromCL
-Sigmoid
 BatchMatMul
 - TransA : bool : false
 - TransB : bool : true
@@ -99,3 +107,8 @@ BatchMatMul
 BatchGather
 ConcatBatchMatMulBatchGatherOp
 
+Declare
+Export
+
+CopyFromCL
+Sigmoid

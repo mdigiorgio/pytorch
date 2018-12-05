@@ -1,5 +1,5 @@
 #include "../THCTensorMathPointwise.cuh"
 #include "THCTensor.hpp"
-#include "THCStream.hpp"
+
 #include "../generic/THCTensorMathPointwise.cu"
-#include "../THCGenerateCharType.h"
+#include <THC/THCGenerateCharType.h>

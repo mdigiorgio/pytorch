@@ -1,7 +1,6 @@
 #pragma once
 
 #include <ATen/cuda/detail/TensorInfo.cuh>
-#include <THC/THCNumerics.cuh>
 
 namespace at { namespace native {
 
@@ -39,6 +38,8 @@ __device__ void applyOp3(
   }
 }
 
+// Assume both dense and values are contiguous.
+// Currently only used in add_out_dense_sparse_cuda: add(dense, sparse, scalar).
 template <typename Op, typename IndexType, typename Real>
 __global__ void sparseElementwiseKernel(
     Op op,
@@ -46,23 +47,26 @@ __global__ void sparseElementwiseKernel(
     TensorInfo<indexT, IndexType> indices,
     TensorInfo<Real, IndexType> values,
     const IndexType nnz) {
-  IndexType indskip = indices.strides[0];
-  IndexType valueSize = values.strides[0];
+  IndexType ind_skip = indices.strides[0];
+  IndexType ind_nnz_skip = indices.strides[1];
+  IndexType value_size = values.strides[0];  // numel of each slice in values
   for (IndexType linearId = blockIdx.x;
        linearId < nnz;
        linearId += gridDim.x) {
     IndexType index = 0;
     for (IndexType d = 0; d < indices.sizes[0]; d++) {
-      index = dense.sizes[d] * index + indices.data[d * indskip + linearId];
+      index = dense.sizes[d] * index + indices.data[d * ind_skip + linearId * ind_nnz_skip];
     }
-    Real *dst = dense.data + index * valueSize;
-    Real *src = values.data + linearId * valueSize;
-    for (IndexType linearId2 = threadIdx.x; linearId2 < valueSize; linearId2 += blockDim.x) {
+    Real *dst = dense.data + index * value_size;
+    Real *src = values.data + linearId * value_size;
+    for (IndexType linearId2 = threadIdx.x; linearId2 < value_size; linearId2 += blockDim.x) {
       op(dst + linearId2, src + linearId2);
     }
   }
 }
 
+// Assume dense is contiguous.
+// Currently only used in add_out_dense_sparse_cuda: add(dense, sparse, scalar).
 template <typename Op, typename IndexType, typename Real>
 __global__ void sparseElementwiseKernelScalar(
     Op op,
@@ -70,15 +74,17 @@ __global__ void sparseElementwiseKernelScalar(
     TensorInfo<indexT, IndexType> indices,
     TensorInfo<Real, IndexType> values,
     const IndexType nnz) {
-  IndexType indskip = indices.strides[0];
+  IndexType ind_skip = indices.strides[0];
+  IndexType ind_nnz_skip = indices.strides[1];
+  IndexType value_skip = values.strides[0];
   for (IndexType linearId = blockIdx.x * blockDim.x + threadIdx.x;
        linearId < nnz;
        linearId += gridDim.x * blockDim.x) {
     IndexType index = 0;
     for (IndexType d = 0; d < indices.sizes[0]; d++) {
-      index = dense.sizes[d] * index + indices.data[d * indskip + linearId];
+      index = dense.sizes[d] * index + indices.data[d * ind_skip + linearId * ind_nnz_skip];
     }
-    op(dense.data + index, values.data + linearId);
+    op(dense.data + index, values.data + linearId * value_skip);
   }
 }
 
@@ -262,12 +268,12 @@ __global__ void indexSparseIntersectionKernel(
 //       long seg = chunk / chunksPerSeg;
 //       auto begin = segment_offsets[seg];
 //       auto end = (seg < newNnz - 1) ? segment_offsets[seg + 1] : nnz;
-//       Acctype valSum = ScalarConvert<float, Acctype>::to(0);
+//       Acctype valSum = static_cast<Acctype>::to(0);
 //       for (long valIdx = begin; valIdx < end; valIdx++) {
 //         const long valRow = value_indices[valIdx] * stride;
-//         valSum += ScalarConvert<Dtype, Acctype>::to(valFeat[valRow]);
+//         valSum += static_cast<Acctype>::to(valFeat[valRow]);
 //       }
-//       newValues[seg * stride + featureDim] = ScalarConvert<Acctype, Dtype>::to(valSum);
+//       newValues[seg * stride + featureDim] = static_cast<Dtype>::to(valSum);
 //     }
 //   }
 // }
@@ -291,7 +297,7 @@ __global__ void coalesceValuesKernel(
     Acctype tmp[SZ];
     #pragma unroll
     for (int ii = 0; ii < SZ; ii++) {
-      tmp[ii] = ScalarConvert<float, Acctype>::to(0);
+      tmp[ii] = 0;
     }
     for (int row = begin; row < end; row++) {
       const int valueRow = ((int) value_indices[row]) * stride;
@@ -303,7 +309,7 @@ __global__ void coalesceValuesKernel(
         int featureDim = startFeature + ii * WARP_SIZE;
         if (featureDim < stride)
         {
-          tmp[ii] += ScalarConvert<Dtype, Acctype>::to(values[valueRow + featureDim]);
+          tmp[ii] += static_cast<Acctype>(values[valueRow + featureDim]);
         }
       }
     }
@@ -313,7 +319,7 @@ __global__ void coalesceValuesKernel(
       int featureDim = startFeature + ii * WARP_SIZE;
       if (featureDim < stride)
       {
-        newValues[newValueRow + featureDim] = ScalarConvert<Acctype, Dtype>::to(tmp[ii]);
+        newValues[newValueRow + featureDim] = static_cast<Dtype>(tmp[ii]);
       }
     }
   }

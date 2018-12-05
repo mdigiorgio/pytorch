@@ -2,14 +2,15 @@
 
 #include <ATen/CUDAGenerator.h>
 #include <ATen/Context.h>
-#include <ATen/Error.h>
 #include <ATen/RegisterCUDA.h>
 #include <ATen/cuda/CUDAConfig.h>
-#include <ATen/native/cuda/CuFFTPlanCache.h>
 #include <ATen/cuda/PinnedMemoryAllocator.h>
 #include <ATen/detail/CUDAHooksInterface.h>
+#include <ATen/native/cuda/CuFFTPlanCache.h>
+#include <c10/util/Exception.h>
 
 #include "THC/THC.h"
+#include <THC/THCGeneral.hpp>
 
 #if AT_CUDNN_ENABLED()
 #include "ATen/cudnn/cudnn-wrapper.h"
@@ -24,52 +25,13 @@
 namespace at {
 namespace cuda {
 namespace detail {
-namespace {
-
-void check_status(int32_t status) {
-  AT_CHECK(
-      static_cast<cudaError_t>(status) == cudaSuccess,
-      "CUDA error (",
-      static_cast<int32_t>(status),
-      "): ",
-      cudaGetErrorString(static_cast<cudaError_t>(status)));
-}
-
-void set_device(int32_t device) {
-  check_status(cudaSetDevice(device));
-}
-
-void get_device(int32_t* device) {
-  check_status(cudaGetDevice(device));
-}
-
-void unchecked_set_device(int32_t device) {
-  const auto return_code = cudaSetDevice(device);
-  (void)return_code;
-}
-
-struct DynamicCUDAInterfaceSetter {
-  DynamicCUDAInterfaceSetter() {
-    at::detail::DynamicCUDAInterface::set_device = set_device;
-    at::detail::DynamicCUDAInterface::get_device = get_device;
-    at::detail::DynamicCUDAInterface::unchecked_set_device =
-        unchecked_set_device;
-  }
-};
-
-// Single, global, static (because of the anonymous namespace) instance, whose
-// constructor will set the static members of `DynamicCUDAInterface` to CUDA
-// functions when the ATen CUDA library is loaded.
-DynamicCUDAInterfaceSetter _;
-} // namespace
 
 // NB: deleter is dynamic, because we need it to live in a separate
 // compilation unit (alt is to have another method in hooks, but
 // let's not if we don't need to!)
 std::unique_ptr<THCState, void (*)(THCState*)> CUDAHooks::initCUDA() const {
   THCState* thc_state = THCState_alloc();
-  THCState_setDeviceAllocator(thc_state, THCCachingAllocator_get());
-  thc_state->cudaHostAllocator = &THCCachingHostAllocator;
+
   THCudaInit(thc_state);
   return std::unique_ptr<THCState, void (*)(THCState*)>(
       thc_state, [](THCState* p) {
@@ -92,31 +54,16 @@ bool CUDAHooks::hasCUDA() const {
   return true;
 }
 
-bool CUDAHooks::hasCuDNN() const {
-  return AT_CUDNN_ENABLED();
+bool CUDAHooks::hasMAGMA() const {
+#ifdef USE_MAGMA
+  return true;
+#else
+  return false;
+#endif
 }
 
-cudaStream_t CUDAHooks::getCurrentCUDAStream(THCState* thc_state) const {
-  return THCState_getCurrentStream(thc_state);
-}
-cudaStream_t CUDAHooks::getCurrentCUDAStreamOnDevice(
-    THCState* thc_state,
-    int64_t device) const {
-  return THCState_getCurrentStreamOnDevice(thc_state, device);
-}
-#ifndef __HIP_PLATFORM_HCC__
-cusparseHandle_t CUDAHooks::getCurrentCUDASparseHandle(THCState* thc_state) const {
-  return THCState_getCurrentSparseHandle(thc_state);
-}
-#endif
-struct cudaDeviceProp* CUDAHooks::getCurrentDeviceProperties(
-    THCState* thc_state) const {
-  return THCState_getCurrentDeviceProperties(thc_state);
-}
-struct cudaDeviceProp* CUDAHooks::getDeviceProperties(
-    THCState* thc_state,
-    int device) const {
-  return THCState_getDeviceProperties(thc_state, device);
+bool CUDAHooks::hasCuDNN() const {
+  return AT_CUDNN_ENABLED();
 }
 
 int64_t CUDAHooks::current_device() const {
@@ -140,10 +87,14 @@ bool CUDAHooks::compiledWithCuDNN() const {
   return AT_CUDNN_ENABLED();
 }
 
+bool CUDAHooks::compiledWithMIOpen() const {
+  return AT_ROCM_ENABLED();
+}
+
 bool CUDAHooks::supportsDilatedConvolutionWithCuDNN() const {
 #if AT_CUDNN_ENABLED()
   cudaDeviceProp* prop =
-      getCurrentDeviceProperties(globalContext().getTHCState());
+      THCState_getCurrentDeviceProperties(globalContext().getTHCState());
   // NOTE: extra parenthesis around numbers disable clang warnings about
   // dead code
   return (

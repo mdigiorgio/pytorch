@@ -3,8 +3,8 @@
 
 #include "THCTensor.h"
 #include "THCGeneral.h"
-#include "THCHalf.h"
-#include "THCStream.h"
+#include "TH/THHalf.h"
+
 
 #include "generic/THCTensorCopy.h"
 #include "THCGenerateAllTypes.h"
