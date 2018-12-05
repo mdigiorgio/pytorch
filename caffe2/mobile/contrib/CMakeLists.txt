@@ -5,7 +5,7 @@ if(USE_MOBILE_OPENGL AND (ANDROID OR IOS))
   # add_subdirectory(opengl)
 endif()
 if (USE_ACL)
-  add_subdirectory(arm-compute)
+  add_subdirectory(opencl)
 endif()
 # Finally pass the src lists back to the parent
 

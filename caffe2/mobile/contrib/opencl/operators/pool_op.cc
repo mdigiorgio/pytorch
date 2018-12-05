@@ -53,7 +53,7 @@ bool CLAveragePoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
   int height = X_->dim32(2);
   int width = X_->dim32(3);
 
-  vector<TIndex> output_dims = {N, channels, 1, 1};
+  vector<int64_t> output_dims = {N, channels, 1, 1};
   if (!global_pooling_) {
     output_dims[2] = (height + pad_t() + pad_b() - kernel_h()) / stride_h() + 1;
     output_dims[3] = (width + pad_l() + pad_r() - kernel_w()) / stride_w() + 1;
@@ -119,7 +119,7 @@ template <> bool CLMaxPoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
   int height = X_->dim32(2);
   int width = X_->dim32(3);
 
-  vector<TIndex> output_dims = {N, channels, 1, 1};
+  vector<int64_t> output_dims = {N, channels, 1, 1};
   if (!global_pooling_) {
     output_dims[2] = (height + pad_t() + pad_b() - kernel_h()) / stride_h() + 1;
     output_dims[3] = (width + pad_l() + pad_r() - kernel_w()) / stride_w() + 1;

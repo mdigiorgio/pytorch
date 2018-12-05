@@ -43,7 +43,7 @@ public:
   static bool initialized;
   explicit CLContext();
   explicit CLContext(const DeviceOption &option) {
-    DCHECK_EQ(option.device_type(), OPENCL);
+    DCHECK_EQ(option.device_type(), PROTO_OPENCL);
     CLContext();
   }
   ~CLContext() {}
@@ -247,7 +247,7 @@ public:
 
   int32_t ndim() const { return dims_.size(); }
 
-  vector<TIndex> dims() const { return dims_; }
+  vector<int64_t> dims() const { return dims_; }
 
   int32_t dim32(const int index) const { return dims_.at(index); }
 
@@ -276,12 +276,16 @@ public:
   }
 
 private:
+  bool SetDims(at::IntList dims) {
+    return SetDims(dims.vec());
+  }
+
   template <typename TI, typename = typename std::enable_if<
                              std::is_integral<TI>::value>::type>
   bool SetDims(const vector<TI> &src) {
     auto old_size = size_;
     dims_.resize(src.size());
-    TIndex new_size = 1;
+    int64_t new_size = 1;
     for (unsigned int i = 0; i < src.size(); ++i) {
       new_size *= src[i];
       dims_[i] = src[i];
@@ -297,7 +301,7 @@ private:
     return size_ > old_size;
   }
 
-  bool SetDims(const TIndex d0) {
+  bool SetDims(const int64_t d0) {
     auto old_size = size_;
     dims_.resize(1);
     dims_[0] = d0;
@@ -305,7 +309,7 @@ private:
     return size_ > old_size;
   }
 
-  bool SetDims(const TIndex d0, const TIndex d1) {
+  bool SetDims(const int64_t d0, const int64_t d1) {
     auto old_size = size_;
     dims_.resize(2);
     dims_[0] = d0;
@@ -314,7 +318,7 @@ private:
     return size_ > old_size;
   }
 
-  bool SetDims(const TIndex d0, const TIndex d1, const TIndex d2) {
+  bool SetDims(const int64_t d0, const int64_t d1, const int64_t d2) {
     auto old_size = size_;
     dims_.resize(3);
     dims_[0] = d0;
@@ -324,8 +328,8 @@ private:
     return size_ > old_size;
   }
 
-  bool SetDims(const TIndex d0, const TIndex d1, const TIndex d2,
-               const TIndex d3) {
+  bool SetDims(const int64_t d0, const int64_t d1, const int64_t d2,
+               const int64_t d3) {
     auto old_size = size_;
     dims_.resize(4);
     dims_[0] = d0;
@@ -336,8 +340,8 @@ private:
     return size_ > old_size;
   }
 
-  vector<TIndex> dims_;
-  TIndex size_ = -1;
+  vector<int64_t> dims_;
+  int64_t size_ = -1;
   arm_compute::TensorShape shape_;
   unique_ptr<arm_compute::CLTensor> tensor_;
 };

@@ -241,7 +241,7 @@ NetDef rewritePredictNetForOpenCL(const NetDef& predictNet, bool runFusion, std:
   for (auto i = 0; i < net.op().size(); ++i) {
     auto op = net.mutable_op(i);
     if (std::find(cpuOps.begin(), cpuOps.end(), op->type()) == cpuOps.end()) {
-      op->mutable_device_option()->set_device_type(OPENCL);
+      op->mutable_device_option()->set_device_type(PROTO_OPENCL);
     }
   }
 

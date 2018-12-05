@@ -45,7 +45,7 @@ bool CLResizeNearestOp<T>::RunOnDevice() {
 
   OpenCLTensor<T> *Y =
       OperatorBase::Outputs()[0]->template GetMutable<OpenCLTensor<T>>();
-  vector<TIndex> output_dims = {N, C, H * height_scale_, W * width_scale_};
+  vector<int64_t> output_dims = {N, C, H * height_scale_, W * width_scale_};
 
   if (first_run_) {
     Y->Resize(output_dims);

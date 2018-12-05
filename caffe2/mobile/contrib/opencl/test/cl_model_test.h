@@ -8,9 +8,9 @@
 #include "caffe2/opt/mobile.h"
 #include <unordered_set>
 
-CAFFE2_DEFINE_int(warmup, 3, "The number of iterations to warm up.");
-CAFFE2_DEFINE_int(iter, 10, "The number of iterations to run.");
-CAFFE2_DEFINE_bool(
+C10_DEFINE_int(warmup, 3, "The number of iterations to warm up.");
+C10_DEFINE_int(iter, 10, "The number of iterations to run.");
+C10_DEFINE_bool(
     run_individual,
     true,
     "Whether to benchmark individual operators.");
@@ -19,7 +19,7 @@ CAFFE2_DEFINE_bool(
 constexpr float tol = 0.03;
 namespace caffe2 {
   void benchmarkModel(std::string init_net_pb, std::string predict_net_pb, std::string input_name, std::vector<int> input_dims, std::string net_name="benchmark_net", std::unordered_set<std::string> cpu_ops = std::unordered_set<std::string>({})) {
-    unique_ptr<caffe2::Workspace> ws(new caffe2::Workspace());
+    unique_ptr<Workspace> ws(new Workspace());
     NetDef init_net_def;
     CAFFE_ENFORCE(ReadProtoFromFile(init_net_pb, &init_net_def));
     CAFFE_ENFORCE(ws->RunNetOnce(init_net_def));
@@ -57,19 +57,19 @@ namespace caffe2 {
   LOG(ERROR) << "[C2DEBUG] after compareNetResult4D";
   NetBase* net = ws->CreateNet(predict_net_def_gpu);
   LOG(ERROR) << "[C2DEBUG] Benchmarking OpenCL Net";
-  net->TEST_Benchmark(caffe2::FLAGS_warmup, caffe2::FLAGS_iter, caffe2::FLAGS_run_individual);
+  net->TEST_Benchmark(FLAGS_warmup, FLAGS_iter, FLAGS_run_individual);
   // Test CPU
   for (auto i = 0; i < predict_net_def.op().size(); ++i) {
     auto op = predict_net_def.mutable_op(i);
     if (std::find(cpu_ops.begin(), cpu_ops.end(), op->type()) == cpu_ops.end()) {
-      op->mutable_device_option()->set_device_type(CPU);
+      op->mutable_device_option()->set_device_type(PROTO_CPU);
     }
   }
   predict_net_def.set_type("simple");
   predict_net_def.set_name("cpu_net");
   net = ws->CreateNet(predict_net_def);
   LOG(INFO) << "[C2DEBUG] Benchmarking CPU Net";
-  net->TEST_Benchmark(caffe2::FLAGS_warmup, caffe2::FLAGS_iter, caffe2::FLAGS_run_individual);
+  net->TEST_Benchmark(FLAGS_warmup, FLAGS_iter, FLAGS_run_individual);
 
   }
 } // namespace caffe2

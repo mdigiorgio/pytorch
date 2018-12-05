@@ -9,10 +9,10 @@ namespace caffe2 {
 
 #define DECLARE_OPENCL_OPERATOR(_name)                                         \
   OperatorDef _name;                                                           \
-  _name.mutable_device_option()->set_device_type(OPENCL);
+  _name.mutable_device_option()->set_device_type(PROTO_OPENCL);
 
 #define MAKE_OPENCL_OPERATOR(_op)                                              \
-  _op->mutable_device_option()->set_device_type(OPENCL);
+  _op->mutable_device_option()->set_device_type(PROTO_OPENCL);
 
 #define ADD_ARG(_op, _name, _type, _val)                                       \
   {                                                                            \
@@ -25,7 +25,7 @@ namespace caffe2 {
 // and unique at each value (for debugging purposes)
 template<typename T = float>
 void PopulateCPUBlob(Workspace *ws, bool random, std::string name,
-                     std::vector<int> dims, int val = 1, int dist_shift = 0, float variance = 1) {
+                     std::vector<int> dims, int val = 1, float dist_shift = 0, float variance = 1) {
   Blob *blob = ws->CreateBlob(name);
   auto *tensor = blob->GetMutable<TensorCPU>();
   tensor->Resize(dims);
