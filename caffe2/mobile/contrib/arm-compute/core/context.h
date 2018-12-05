@@ -247,13 +247,13 @@ public:
   }
 
 
-  const int32_t ndim() const { return dims_.size(); }
+  int32_t ndim() const { return dims_.size(); }
 
   vector<int64_t> dims() const { return dims_; }
 
-  const int32_t dim32(const int index) const { return dims_.at(index); }
+  int32_t dim32(const int index) const { return dims_.at(index); }
 
-  const int32_t size() const {
+  int32_t size() const {
     int32_t s = 1;
     for (int i = 0; i < dims_.size(); i++) {
       s *= dims_[i];
@@ -278,6 +278,10 @@ public:
   }
 
 private:
+  bool SetDims(at::IntList src) {
+    return SetDims(src.vec());
+  }
+
   template <typename TI, typename = typename std::enable_if<
                              std::is_integral<TI>::value>::type>
   bool SetDims(const vector<TI> &src) {

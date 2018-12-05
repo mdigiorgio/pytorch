@@ -28,7 +28,7 @@ GLNet::GLNet(
     VLOG(1) << "Creating operator " << operator_def.name() << ": "
             << operator_def.type();
     output_blobs_.push_back(operator_def.output(0));
-    if (operator_def.has_device_option() && operator_def.device_option().device_type() == OPENGL) {
+    if (operator_def.has_device_option() && operator_def.device_option().device_type() == PROTO_OPENGL) {
       opengl_device_.push_back(true);
     } else {
       opengl_device_.push_back(false);

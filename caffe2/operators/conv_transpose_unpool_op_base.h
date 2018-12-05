@@ -124,7 +124,6 @@ class ConvTransposeUnpoolBase : public Operator<Context> {
       CAFFE_ENFORCE_LE(adj_[dim], stride_[dim]);
     }
 
-    caffe2::FLAGS_caffe2_force_shared_col_buffer = false;
     // Create shared buffer mutex in the constructor
     // to avoid race-condition in DAGNet.
     if (FLAGS_caffe2_force_shared_col_buffer || shared_buffer_) {
