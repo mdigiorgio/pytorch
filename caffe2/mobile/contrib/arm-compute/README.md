@@ -52,7 +52,7 @@ Plug in an android device, and run a test
 
 ```
 cd build_android
-adb push bin/gl_conv_op_test /data/local/tmp && adb shell '/data/local/tmp/gl_conv_op_test'
+adb push bin/cl_conv_op_test /data/local/tmp && adb shell '/data/local/tmp/cl_conv_op_test'
 ```
 or use a script to run them all
 

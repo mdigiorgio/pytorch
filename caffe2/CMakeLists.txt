@@ -215,6 +215,18 @@ install(TARGETS caffe2 EXPORT Caffe2Targets DESTINATION lib)
 caffe2_interface_library(caffe2 caffe2_library)
 list(APPEND Caffe2_MAIN_LIBS caffe2_library)
 
+if(USE_ACL)
+  if(NOT USE_ARM64)
+    target_compile_options(caffe2 PRIVATE "-mfpu=neon-fp16")
+  endif()
+
+  include(CheckCCompilerFlag)
+  CHECK_C_COMPILER_FLAG(-mfp16-format=ieee CAFFE2_COMPILER_SUPPORTS_FP16_FORMAT)
+  if(CAFFE2_COMPILER_SUPPORTS_FP16_FORMAT)
+    target_compile_options(caffe2 PRIVATE "-mfp16-format=ieee")
+  endif()
+endif()
+
 # ---[ CUDA library.
 if(USE_CUDA)
   # A hack to deal with cuda library dependencies and modern CMake: the
