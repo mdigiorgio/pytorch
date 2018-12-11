@@ -18,7 +18,7 @@ C10_DEFINE_bool(
 
 constexpr float tol = 0.03;
 namespace caffe2 {
-  void benchmarkModel(std::string init_net_pb, std::string predict_net_pb, std::string input_name, std::vector<int> input_dims, std::string net_name="benchmark_net", std::unordered_set<std::string> cpu_ops = std::unordered_set<std::string>({})) {
+  void benchmarkModel(std::string init_net_pb, std::string predict_net_pb, std::string input_name, std::vector<int64_t> input_dims, std::string net_name="benchmark_net", std::unordered_set<std::string> cpu_ops = std::unordered_set<std::string>({})) {
     unique_ptr<Workspace> ws(new Workspace());
     NetDef init_net_def;
     CAFFE_ENFORCE(ReadProtoFromFile(init_net_pb, &init_net_def));
